@@ -1,0 +1,42 @@
+{
+  "name": "agent-access",
+  "description": "Thin living access layer for agents: route websites, apps, APIs, and workflows to CLIs, structured retrieval, browser fallback, or contribution drafts",
+  "version": "0.1.0",
+  "author": {
+    "name": "Agent Access contributors"
+  },
+  "homepage": "https://github.com/r266-tech/agent-access",
+  "repository": "https://github.com/r266-tech/agent-access",
+  "license": "MIT",
+  "keywords": [
+    "agent",
+    "access",
+    "cli",
+    "router",
+    "browser",
+    "gui"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Agent Access",
+    "shortDescription": "Route sites and apps to agent-native CLIs",
+    "longDescription": "Agent Access helps Codex choose agent-native CLIs, structured APIs, browser fallback, or Computer Use for websites, local apps, and recurring online workflows. It keeps the default skill thin and turns repeatable discoveries into reusable command surfaces.",
+    "developerName": "Agent Access contributors",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/r266-tech/agent-access",
+    "privacyPolicyURL": "https://github.com/r266-tech/agent-access/blob/main/SECURITY.md",
+    "termsOfServiceURL": "https://github.com/r266-tech/agent-access/blob/main/LICENSE",
+    "defaultPrompt": [
+      "Use Agent Access to see whether a local CLI already covers this website.",
+      "Use Agent Access to design an agent-friendly CLI for this recurring web workflow.",
+      "Use Agent Access to inspect auth/session recovery options for this tool."
+    ],
+    "brandColor": "#10A37F",
+    "screenshots": []
+  }
+}

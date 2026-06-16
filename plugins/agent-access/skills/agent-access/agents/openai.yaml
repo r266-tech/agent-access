@@ -1,0 +1,4 @@
+interface:
+  display_name: "Agent Access"
+  short_description: "Thin living access layer for agent CLIs, web/app fallback, and contribution"
+  default_prompt: "Use Agent Access as a thin router: prefer existing agent CLIs and structured retrieval, then use Edge CDP or Computer Use only for CLI/API gaps."

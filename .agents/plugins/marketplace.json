@@ -1,0 +1,20 @@
+{
+  "name": "agent-access",
+  "interface": {
+    "displayName": "Agent Access"
+  },
+  "plugins": [
+    {
+      "name": "agent-access",
+      "source": {
+        "source": "local",
+        "path": "./plugins/agent-access"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "name": "agent-access",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "description": "Codex plugin for agent-native CLIs and safe web/app fallback routing.",
+  "license": "MIT",
+  "scripts": {
+    "test": "node --check plugins/agent-access/skills/agent-access/scripts/agent-access.mjs && plugins/agent-access/skills/agent-access/scripts/agent-access.mjs --help >/dev/null && node plugins/agent-access/skills/agent-access/scripts/agent-access.mjs audit-public . && node scripts/validate-codex-plugin.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

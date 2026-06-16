@@ -1,0 +1,44 @@
+{
+  "version": "0.1.0",
+  "updated_at": "2026-06-16",
+  "entries": [
+    {
+      "name": "example",
+      "aliases": [
+        "example-site"
+      ],
+      "kind": "site",
+      "targets": [
+        "example.com"
+      ],
+      "command": "example-cli",
+      "description": "Example companion CLI entry. Replace with a real JSON-first CLI before promoting to a hot route.",
+      "install": {
+        "type": "manual",
+        "hint": "Install example-cli, then run agent-access doctor example --run."
+      },
+      "doctor": [
+        "example-cli",
+        "doctor"
+      ],
+      "auth": {
+        "required_for": [],
+        "methods": [],
+        "planned_methods": [],
+        "broker": "none",
+        "commands": {}
+      },
+      "read_write": "read-only",
+      "outputs": [
+        "json",
+        "ids",
+        "urls"
+      ],
+      "source": "example",
+      "quality": {
+        "level": "example",
+        "last_verified_at": null
+      }
+    }
+  ]
+}
