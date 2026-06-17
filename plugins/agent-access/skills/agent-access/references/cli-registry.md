@@ -2,6 +2,8 @@
 
 Agent Access core stays thin. It carries a registry so agents can discover, install, diagnose, update, and route to companion CLIs without hardcoding every site into the skill.
 
+`cli-manifest.json` is a deterministic discovery index generated from `registry.json`. It is not a separate source of truth. The package gate must fail when the manifest is stale or when an entry disappears without reviewed intent.
+
 ## Entry Shape
 
 Each entry should declare:
@@ -18,7 +20,10 @@ Each entry should declare:
 - `write_policy` when writes exist;
 - `outputs`: JSON, ids, urls, cursors, cache refs, citations, etc.;
 - `source_status`: public release/source maturity;
-- `quality`: verification and dogfood state.
+- `source_strategy`, `source_contract`, and `source_note`;
+- `verify`: required flow, fixture policy, evidence, and residual risk;
+- `quality`: verification, dogfood state, and safe `probes[]`;
+- `error_contract`: exit codes, JSON error envelope, next action, and no sentinel rows.
 
 Planned methods are not executable recovery paths. Do not advertise them as active login methods until they are implemented and dogfooded.
 
@@ -37,6 +42,31 @@ agent-access doctor <name> --run
 ```
 
 Manual or source-pending entries are acceptable in the public registry when the capability contract is useful, but they must be labeled clearly. Do not pretend a standalone installer exists.
+
+## Manifest Gate
+
+Use the manifest gate before packaging:
+
+```bash
+agent-access check-manifest
+agent-access build-manifest --write
+```
+
+`build-manifest` is dry-run by default. If the generated manifest differs from the committed one, it reports the drift and exits non-zero until rerun with `--write`. It reads the packaged `registry.json` by default and deliberately ignores `AGENT_ACCESS_REGISTRY`; use `--registry FILE --output FILE` only for temporary local checks. If an existing or git-baseline manifest entry would be removed, the command fails unless the reviewer explicitly passes `--allow-removals`.
+
+Do not edit `cli-manifest.json` by hand. Edit `registry.json`, run `build-manifest --write`, then review the diff.
+
+## Overlay Shadow Audit
+
+Users may keep private registry overlays outside the public package. Agent Access does not auto-merge or upload them. Use:
+
+```bash
+agent-access audit-overlay
+AGENT_ACCESS_REGISTRY=/path/to/private-registry.json agent-access audit-overlay --strict
+agent-access audit-overlay --registry /path/to/private-registry.json --strict
+```
+
+The audit reports local-only entries and entries that shadow packaged routes by name, command, alias, or target. Local overlay entry names are redacted by default; add `--reveal-local` only during a user-approved local diagnostic. `--strict` makes packaged-route shadowing fail so release and support flows can stop before an agent trusts the wrong route contract.
 
 ## Source Status
 
@@ -59,6 +89,17 @@ Before promoting a CLI:
 6. Auth/session failure has a diagnostic path.
 7. Write/external actions require explicit flags.
 8. A realistic task has been dogfooded after installation.
+
+## Verify Contract
+
+`verify.required_flow` uses short labels such as `help`, `doctor`,
+`auth-status`, `list`, `search`, `detail`, `follow-up`,
+`pagination`, `filter`, `error-path`, `dry-run`, `apply`, and
+`read-back`.
+
+`fixture_policy` is one of `redacted-fixture`, `live-probe`, or
+`manual-only`. Registry `quality.probes[]` must only contain safe commands;
+private account probes belong in local state, not in the public package.
 
 ## Swarm Upgrade Flow
 

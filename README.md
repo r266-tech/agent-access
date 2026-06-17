@@ -45,11 +45,17 @@ Agent Access 的打法是把重复访问变成可复用能力：
 
 ## 你会得到什么
 
-- `agent-access` CLI：查询 registry、查看安装/升级计划、doctor 检查、auth 路由、公开审计、贡献草稿。
+- 随插件打包的 `agent-access` CLI：查询 registry、查看安装/升级计划、doctor 检查、routing contract、verify、auth 路由、manifest 门禁、overlay 遮蔽审计、公开审计、贡献草稿。
 - 可移植的 `registry.json`：登记 WeChat、Polymarket、小宇宙、豆瓣、大众点评、小红书等 companion CLI。
+- 由 registry 派生的 `cli-manifest.json`：给 agent 和发布流程一个稳定发现面，避免 route 静默消失。
 - 薄 skill：提醒 agent 怎么选工具，但不把所有规则塞进常驻 prompt。
 - references：CLI 生成、auth/session 边界、浏览器兜底、贡献审核等操作说明。
 - Codex 插件包：位于 `plugins/agent-access`，方便 Codex 用户安装。
+
+装插件后，用户立即拥有核心 `agent-access` CLI 和 registry。具体站点的
+companion CLI 不默认全部打包进插件；agent 可以通过 `agent-access info/install/update/verify`
+发现、安装和检查它们。这样基础插件保持小而可信，用户又不会卡在“不知道下一步怎么用”。
+如果用户配置了本地私有 registry 或 overlay，`agent-access audit-overlay` 会报告它是否遮蔽了插件自带 route，避免 agent 误以为正在使用最新打包契约。
 
 ## 快速开始
 
@@ -58,8 +64,12 @@ Agent Access 的打法是把重复访问变成可复用能力：
 ```bash
 npx github:r266-tech/agent-access --help
 npx github:r266-tech/agent-access list
+npx github:r266-tech/agent-access contract --target douban --task "mark movie as watched"
+npx github:r266-tech/agent-access verify wechat-cli
 npx github:r266-tech/agent-access info wechat-cli
 npx github:r266-tech/agent-access doctor wechat-cli
+npx github:r266-tech/agent-access check-manifest
+npx github:r266-tech/agent-access audit-overlay
 ```
 
 从本地 checkout 使用：
@@ -71,8 +81,12 @@ npm link
 
 agent-access list
 agent-access info wechat-cli
+agent-access contract --target douban --task "mark movie as watched"
+agent-access verify wechat-cli
 agent-access install wechat-cli      # 默认只输出 dry-run 计划
 agent-access doctor wechat-cli --run # 执行目标 CLI 的 doctor 命令
+agent-access check-manifest          # 防止 registry route 与 manifest 漂移
+agent-access audit-overlay           # 检查本地私有 registry 是否遮蔽打包 route
 ```
 
 `install` 和 `update` 默认都是 dry-run。只有确定要修改本机环境时才加 `--run`。
@@ -120,6 +134,16 @@ agent-access update wechat-cli --run
 
 `plugins/agent-access/skills/agent-access/registry.json` 是权威 registry。`source_status` 用来告诉 agent：这个 route 是现在可安装，还是只有公开契约、源码待发布。
 
+`plugins/agent-access/skills/agent-access/cli-manifest.json` 是从 registry 生成的确定性发现索引。发布前跑：
+
+```bash
+agent-access check-manifest
+agent-access build-manifest --write
+```
+
+`build-manifest` 默认不会写文件；只有加 `--write` 才更新 manifest。若已有 manifest 里的 route 被移除，命令会失败，除非明确加 `--allow-removals` 表示这次删除已经被审核。
+默认 manifest 生成只读取打包 `registry.json`，不会继承 `AGENT_ACCESS_REGISTRY` 私有覆盖。需要临时检查私有 registry 时，必须显式传 `--registry FILE --output FILE`，不要写回公开包。
+
 ## Agent-Native CLI 契约
 
 一个适合 agent 使用的 companion CLI 应该提供：
@@ -145,6 +169,8 @@ Agent Access 分四层：
 3. Companion CLIs：面向具体网站、App、API、本地数据库和工作流的工具。
 4. 用户本地状态：凭据、cookie、浏览器 session、API key、缓存和私有 overlay。
 
+公开包不会自动合并私有 overlay。若设置了 `AGENT_ACCESS_REGISTRY`，或存在 `~/.agent-access/registry.json`、`~/.agent-access/registry.local.json`、`~/.agent-access/overlays/registry.json`，可用 `agent-access audit-overlay` 检查本地条目是否遮蔽打包 route。`--strict` 会把遮蔽报告当成失败，用于发布或排障门禁。
+
 公开 registry 可以描述登录方式、安装命令和升级命令，但不能包含用户凭据、cookie、token、账号标识、浏览器 dump、HAR、原始日志或私有本地路径。
 
 ## 隐私和安全
@@ -158,6 +184,8 @@ Agent Access 不做被动遥测，不自动上传用户经验。
 ```bash
 npm test
 node plugins/agent-access/skills/agent-access/scripts/agent-access.mjs audit-public .
+node plugins/agent-access/skills/agent-access/scripts/agent-access.mjs check-manifest
+node plugins/agent-access/skills/agent-access/scripts/agent-access.mjs audit-overlay
 ```
 
 ## 检索关键词

@@ -11,6 +11,14 @@ Read this when the thin skill is not enough to choose the right capability surfa
 5. Use Computer Use only for local GUI software or system surfaces that do not expose a better API, CLI, or file format.
 6. After the task, promote repeatable discoveries into a CLI or focused reference.
 
+## Routing Contract
+
+For complex targets, run or model `agent-access contract --target NAME_OR_URL
+--task TASK` before browser fallback. The contract should expose
+`selected_surface`, `rejected_surfaces`, `primary_sources_required`,
+`auth_boundary`, `write_boundary`, `site_pattern_refs`, and
+`next_probe`.
+
 ## Initial CLI Routes
 
 | Target | Route | Boundary |

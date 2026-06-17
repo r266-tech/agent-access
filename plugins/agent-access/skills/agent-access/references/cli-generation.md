@@ -23,6 +23,12 @@ Start with:
 4. Software script APIs, plugin systems, project file formats, and import/export formats.
 5. Similar CLI patterns for auth, pagination, caching, rate limits, dry-run, and errors.
 
+## Source Strategy Gate
+
+Before implementation, declare the source strategy and contract from
+`source-contracts.md`, plus observed evidence, auth/session source, replay or
+probe result, drift signal, failure signal, and fallback command.
+
 ## Agent-Native Contract
 
 A CLI should have:
@@ -36,6 +42,20 @@ A CLI should have:
 - scriptable limit, cursor/page, filter, sort, and fields;
 - `doctor` or equivalent diagnostics;
 - realistic dogfood proof.
+
+## Verify And Fixtures
+
+Verification should prove the next agent can reuse the flow. Use
+`redacted-fixture` for sanitized fixtures, `live-probe` for repeatable
+current data probes, and `manual-only` for private local state. Write routes
+also need dry-run, explicit apply, and read-back verification.
+
+## Site Memory
+
+Put stable endpoints, field maps, fixtures, probes, and browser traps in the
+narrowest safe place. Public site memory must not contain cookies, tokens,
+account IDs, phone numbers, private page bodies, screenshots, HAR files, or
+local absolute paths.
 
 ## Build Loop
 

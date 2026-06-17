@@ -18,12 +18,20 @@ Cursor、OpenClaw、Hermes 或自定义本地 agent 需要访问网站、App、A
 ```bash
 agent-access list
 agent-access info <target>
+agent-access contract --target <target-or-url> --task "<task>"
+agent-access verify <target>
 agent-access install <target>
 agent-access doctor <target> --run
+agent-access check-manifest
+agent-access audit-overlay
 ```
 
 `install` 和 `update` 默认只输出 dry-run 计划。只有用户明确要修改本机环境时才加
 `--run`。
+
+装插件后自带的是核心 `agent-access` CLI、registry 和 `cli-manifest.json` 发现索引。站点/软件 companion CLI
+按需发现、安装、验证；如果没装，先用 `info/install/verify` 给用户和 agent 明确下一步。
+如果用户配置了私有 registry/overlay，先用 `audit-overlay` 判断它是否遮蔽了打包 route。
 
 如果 `agent-access` 不在 PATH，直接运行 helper：
 
@@ -35,7 +43,13 @@ node plugins/agent-access/skills/agent-access/scripts/agent-access.mjs list
 
 - `plugins/agent-access/skills/agent-access/registry.json`：公开 companion CLI
   registry。
+- `plugins/agent-access/skills/agent-access/cli-manifest.json`：由 registry 生成的
+  发现索引；发布前用 `check-manifest` 防止 route 静默消失。
 - `plugins/agent-access/skills/agent-access/SKILL.md`：薄路由 skill。
+- `plugins/agent-access/skills/agent-access/references/source-contracts.md`：route
+  source strategy 和稳定性契约。
+- `plugins/agent-access/skills/agent-access/references/cli-errors.md`：CLI 错误和
+  exit code 契约。
 - `plugins/agent-access/skills/agent-access/references/cli-generation.md`：如何把重复
   网站/App 流程沉淀成 agent-native CLI。
 - `plugins/agent-access/skills/agent-access/references/auth-sessions.md`：本地 auth/session

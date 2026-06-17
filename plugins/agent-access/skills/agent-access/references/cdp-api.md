@@ -36,6 +36,22 @@ If you add a browser adapter, require:
 - Preserve query parameters and state-bearing links.
 - When you discover stable endpoints, schemas, selectors, or request bodies, feed them back into a CLI or focused reference.
 
+## Browser Task Envelope
+
+Before entering browser fallback, keep the decision structured: target domain,
+task, why browser is necessary, rejected surfaces, auth boundary, write
+boundary, and whether the flow is a promotion candidate.
+
+## Structured Browser Envelope
+
+Browser actions and reads should return branchable fields such as `ok`,
+`target`, `matches_n`, `match_level`, `action`, `candidates`, and
+`next_action`. Use `ambiguous` and `not_found` states instead of guessing.
+
+For forms and network capture, include option metadata, accepted file types,
+method, status, URL, content type, body shape preview, and truncation flags when
+available.
+
 ## Reflection
 
 Before finishing a browser-backed task, decide:
@@ -44,3 +60,10 @@ Before finishing a browser-backed task, decide:
 - stable browser-specific trap -> focused reference;
 - one-off visual judgment -> no durable prompt bloat;
 - existing CLI friction -> improve the CLI and rerun.
+
+## Site Memory After Browser Discovery
+
+Stable machine behavior belongs in CLI code/tests and registry verification.
+Browser-only traps belong in focused site-pattern notes. Do not publish raw page
+bodies, screenshots, HAR files, cookies, tokens, account IDs, private URLs, or
+local absolute paths.

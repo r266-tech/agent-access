@@ -31,8 +31,16 @@ assert(marketplace.plugins[0].policy.installation === 'AVAILABLE', 'marketplace 
 
 const registry = readJson('plugins/agent-access/skills/agent-access/registry.json');
 const registryExample = readJson('plugins/agent-access/skills/agent-access/registry.example.json');
+const manifest = readJson('plugins/agent-access/skills/agent-access/cli-manifest.json');
 assert(JSON.stringify(registry) === JSON.stringify(registryExample), 'registry and registry.example must match');
 assert(Array.isArray(registry.entries) && registry.entries.length > 0, 'registry must include entries');
+assert(manifest.generated_from === 'registry.json', 'manifest must be generated from registry.json');
+assert(manifest.version === registry.version, 'manifest version must match registry version');
+assert(manifest.entry_count === registry.entries.length, 'manifest entry_count must match registry entries');
+assert(
+  JSON.stringify((manifest.entries || []).map((entry) => entry.name).sort()) === JSON.stringify(registry.entries.map((entry) => entry.name).sort()),
+  'manifest entries must match registry entry names',
+);
 
 function authCommandKey(method) {
   if (method === 'qr') return 'login_qr';
@@ -50,6 +58,15 @@ for (const entry of registry.entries) {
   assert(entry.name, 'registry entry missing name');
   assert(entry.command, `registry entry ${entry.name} missing command`);
   assert(entry.source_status, `registry entry ${entry.name} missing source_status`);
+  assert(entry.source_strategy, `registry entry ${entry.name} missing source_strategy`);
+  assert(entry.source_contract, `registry entry ${entry.name} missing source_contract`);
+  assert(entry.source_note, `registry entry ${entry.name} missing source_note`);
+  assert(entry.verify && Array.isArray(entry.verify.required_flow) && entry.verify.required_flow.length > 0, `registry entry ${entry.name} missing verify.required_flow`);
+  assert(entry.verify.fixture_policy, `registry entry ${entry.name} missing verify.fixture_policy`);
+  assert(Array.isArray(entry.quality?.probes) && entry.quality.probes.length > 0, `registry entry ${entry.name} missing quality.probes`);
+  assert(entry.error_contract?.json_error_envelope === true, `registry entry ${entry.name} missing JSON error contract`);
+  assert(entry.error_contract?.next_action === true, `registry entry ${entry.name} missing error next_action contract`);
+  assert(entry.error_contract?.no_sentinel_rows === true, `registry entry ${entry.name} missing no sentinel rows contract`);
   const commands = entry.auth?.commands || {};
   const sessionSourceMethods = new Set(['local-app-session']);
   for (const method of entry.auth?.methods || []) {

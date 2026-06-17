@@ -1,0 +1,400 @@
+{
+  "version": "0.2.4",
+  "generated_from": "registry.json",
+  "generated_at": "2026-06-17",
+  "entry_count": 6,
+  "entries": [
+    {
+      "name": "douban",
+      "command": "douban",
+      "aliases": [
+        "db",
+        "douban-movie",
+        "豆瓣"
+      ],
+      "command_aliases": [],
+      "kind": "site",
+      "targets": [
+        "douban.com",
+        "movie.douban.com",
+        "Douban",
+        "豆瓣电影"
+      ],
+      "description": "Douban movie CLI for ratings/details, title search, nowplaying lists, current-user interest status, and explicit dry-run/apply mark/rate actions through the user browser session.",
+      "repository": "https://github.com/r266-tech/agent-access/issues?q=douban",
+      "read_write": "write-capable",
+      "source_status": "contract-public-source-pending",
+      "source_strategy": "UI_SELECTOR",
+      "source_contract": "visible-ui",
+      "auth_methods": [
+        "browser-session"
+      ],
+      "planned_auth_methods": [
+        "password",
+        "sms"
+      ],
+      "auth_broker": "delegates-to-cli",
+      "install_type": "source-pending",
+      "update_type": "source-pending",
+      "verify_flow": [
+        "help",
+        "doctor",
+        "auth-status",
+        "search",
+        "detail",
+        "dry-run",
+        "read-back",
+        "error-path"
+      ],
+      "fixture_policy": "manual-only",
+      "probe_count": 1,
+      "safe_probe_count": 1,
+      "error_exit_codes": [
+        0,
+        1,
+        2,
+        66,
+        69,
+        75,
+        77,
+        78,
+        130
+      ],
+      "aliases_for_discovery": [
+        "douban",
+        "db",
+        "douban-movie",
+        "豆瓣",
+        "douban.com",
+        "movie.douban.com",
+        "Douban",
+        "豆瓣电影"
+      ]
+    },
+    {
+      "name": "dp",
+      "command": "dp",
+      "aliases": [
+        "dianping",
+        "dazhongdianping",
+        "大众点评"
+      ],
+      "command_aliases": [
+        "dianping"
+      ],
+      "kind": "site",
+      "targets": [
+        "dianping.com",
+        "Dianping",
+        "Dazhong Dianping",
+        "大众点评"
+      ],
+      "description": "Dianping CLI for shop search, shop detail, cities, review text when exposed, and local browser/cookie auth diagnostics without exporting cookies.",
+      "repository": "https://github.com/r266-tech/agent-access/issues?q=dianping",
+      "read_write": "read-only",
+      "source_status": "contract-public-source-pending",
+      "source_strategy": "COOKIE_API",
+      "source_contract": "stable",
+      "auth_methods": [
+        "cookie-import"
+      ],
+      "planned_auth_methods": [
+        "browser-session",
+        "qr",
+        "sms"
+      ],
+      "auth_broker": "delegates-to-cli",
+      "install_type": "source-pending",
+      "update_type": "source-pending",
+      "verify_flow": [
+        "help",
+        "doctor",
+        "auth-status",
+        "list",
+        "detail",
+        "follow-up",
+        "error-path"
+      ],
+      "fixture_policy": "manual-only",
+      "probe_count": 1,
+      "safe_probe_count": 1,
+      "error_exit_codes": [
+        0,
+        1,
+        2,
+        66,
+        69,
+        75,
+        77,
+        78,
+        130
+      ],
+      "aliases_for_discovery": [
+        "dp",
+        "dianping",
+        "dazhongdianping",
+        "大众点评",
+        "dianping.com",
+        "Dianping",
+        "Dazhong Dianping"
+      ]
+    },
+    {
+      "name": "pmkt",
+      "command": "pmkt",
+      "aliases": [
+        "polymarket",
+        "polymarket-cli"
+      ],
+      "command_aliases": [],
+      "kind": "site",
+      "targets": [
+        "polymarket.com",
+        "gamma-api.polymarket.com",
+        "clob.polymarket.com",
+        "Polymarket"
+      ],
+      "description": "Read-only Polymarket CLI for market/event search, summaries, prices, outcomes, order books, trades, and public holder data. It never asks for wallet credentials, private keys, approvals, or order placement.",
+      "repository": "https://github.com/r266-tech/agent-access/issues?q=pmkt",
+      "read_write": "read-only",
+      "source_status": "contract-public-source-pending",
+      "source_strategy": "PUBLIC_API",
+      "source_contract": "stable",
+      "auth_methods": [],
+      "planned_auth_methods": [
+        "api-key",
+        "browser-session"
+      ],
+      "auth_broker": "not-needed-for-public-read",
+      "install_type": "source-pending",
+      "update_type": "source-pending",
+      "verify_flow": [
+        "help",
+        "doctor",
+        "list",
+        "detail",
+        "follow-up",
+        "error-path"
+      ],
+      "fixture_policy": "live-probe",
+      "probe_count": 1,
+      "safe_probe_count": 1,
+      "error_exit_codes": [
+        0,
+        1,
+        2,
+        66,
+        69,
+        75,
+        77,
+        78,
+        130
+      ],
+      "aliases_for_discovery": [
+        "pmkt",
+        "polymarket",
+        "polymarket-cli",
+        "polymarket.com",
+        "gamma-api.polymarket.com",
+        "clob.polymarket.com",
+        "Polymarket"
+      ]
+    },
+    {
+      "name": "wechat-cli",
+      "command": "wechat-cli",
+      "aliases": [
+        "wx-cli",
+        "wechat",
+        "weixin",
+        "local-wechat"
+      ],
+      "command_aliases": [],
+      "kind": "local-data",
+      "targets": [
+        "WeChat",
+        "Weixin",
+        "local WeChat 4.x database",
+        "微信"
+      ],
+      "description": "Read local WeChat conversations, contacts, groups, media, Moments, favorites, transfers, red packets, unread chats, and full-text search from the user machine. It does not send messages or control the WeChat UI.",
+      "repository": "https://github.com/r266-tech/wechat-cli",
+      "read_write": "read-only",
+      "source_status": "public-release",
+      "source_strategy": "LOCAL_APP_DB",
+      "source_contract": "local-data",
+      "auth_methods": [
+        "local-app-session"
+      ],
+      "planned_auth_methods": [],
+      "auth_broker": "delegates-to-cli",
+      "install_type": "script",
+      "update_type": "self-update",
+      "verify_flow": [
+        "help",
+        "doctor",
+        "auth-status",
+        "list",
+        "detail",
+        "follow-up",
+        "error-path"
+      ],
+      "fixture_policy": "manual-only",
+      "probe_count": 1,
+      "safe_probe_count": 1,
+      "error_exit_codes": [
+        0,
+        1,
+        2,
+        66,
+        69,
+        75,
+        77,
+        78,
+        130
+      ],
+      "aliases_for_discovery": [
+        "wechat-cli",
+        "wx-cli",
+        "wechat",
+        "weixin",
+        "local-wechat",
+        "WeChat",
+        "Weixin",
+        "local WeChat 4.x database",
+        "微信"
+      ]
+    },
+    {
+      "name": "xhs",
+      "command": "xhs",
+      "aliases": [
+        "xiaohongshu",
+        "rednote",
+        "小红书"
+      ],
+      "command_aliases": [],
+      "kind": "site",
+      "targets": [
+        "xiaohongshu.com",
+        "xhslink.com",
+        "Rednote",
+        "Xiaohongshu",
+        "小红书"
+      ],
+      "description": "Agent-only Xiaohongshu/Rednote CLI wrapper for search, notes, users, comments, topics, feeds, and explicitly gated mutating pass-through commands.",
+      "repository": "https://github.com/r266-tech/agent-access/issues?q=xhs",
+      "read_write": "write-capable",
+      "source_status": "contract-public-source-pending",
+      "source_strategy": "INTERCEPT",
+      "source_contract": "internal-unstable",
+      "auth_methods": [
+        "browser-session"
+      ],
+      "planned_auth_methods": [
+        "qr",
+        "sms"
+      ],
+      "auth_broker": "delegates-to-cli",
+      "install_type": "source-pending",
+      "update_type": "source-pending",
+      "verify_flow": [
+        "help",
+        "doctor",
+        "auth-status",
+        "search",
+        "detail",
+        "dry-run",
+        "read-back",
+        "error-path"
+      ],
+      "fixture_policy": "manual-only",
+      "probe_count": 1,
+      "safe_probe_count": 1,
+      "error_exit_codes": [
+        0,
+        1,
+        2,
+        66,
+        69,
+        75,
+        77,
+        78,
+        130
+      ],
+      "aliases_for_discovery": [
+        "xhs",
+        "xiaohongshu",
+        "rednote",
+        "小红书",
+        "xiaohongshu.com",
+        "xhslink.com",
+        "Rednote",
+        "Xiaohongshu"
+      ]
+    },
+    {
+      "name": "xyz",
+      "command": "xyz",
+      "aliases": [
+        "xiaoyuzhou",
+        "xiaoyuzhou-fm",
+        "小宇宙"
+      ],
+      "command_aliases": [
+        "xiaoyuzhou"
+      ],
+      "kind": "site",
+      "targets": [
+        "xiaoyuzhoufm.com",
+        "Xiaoyuzhou",
+        "小宇宙 FM"
+      ],
+      "description": "Read-only Xiaoyuzhou FM CLI for subscriptions, episodes, episode details, transcripts, search, and history.",
+      "repository": "https://github.com/r266-tech/xiaoyuzhou",
+      "read_write": "read-only",
+      "source_status": "public-source",
+      "source_strategy": "COOKIE_API",
+      "source_contract": "stable",
+      "auth_methods": [
+        "sms"
+      ],
+      "planned_auth_methods": [],
+      "auth_broker": "delegates-to-cli",
+      "install_type": "git-python",
+      "update_type": "pip-upgrade",
+      "verify_flow": [
+        "help",
+        "doctor",
+        "auth-status",
+        "list",
+        "detail",
+        "follow-up",
+        "error-path"
+      ],
+      "fixture_policy": "manual-only",
+      "probe_count": 1,
+      "safe_probe_count": 1,
+      "error_exit_codes": [
+        0,
+        1,
+        2,
+        66,
+        69,
+        75,
+        77,
+        78,
+        130
+      ],
+      "aliases_for_discovery": [
+        "xyz",
+        "xiaoyuzhou",
+        "xiaoyuzhou-fm",
+        "小宇宙",
+        "xiaoyuzhoufm.com",
+        "Xiaoyuzhou",
+        "小宇宙 FM"
+      ]
+    }
+  ]
+}

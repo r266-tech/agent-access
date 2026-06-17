@@ -1,6 +1,6 @@
 {
   "name": "agent-access",
-  "version": "0.2.2",
+  "version": "0.2.4",
   "type": "module",
   "description": "面向中文开发者和中文用户的通用 AI agent 访问层：把网站、App、API 和重复流程路由到 agent-native CLI。",
   "license": "MIT",
@@ -52,7 +52,7 @@
     "agent-access": "./plugins/agent-access/skills/agent-access/scripts/agent-access.mjs"
   },
   "scripts": {
-    "test": "node --check plugins/agent-access/skills/agent-access/scripts/agent-access.mjs && plugins/agent-access/skills/agent-access/scripts/agent-access.mjs --help >/dev/null && node plugins/agent-access/skills/agent-access/scripts/agent-access.mjs audit-public . && node scripts/validate-codex-plugin.mjs && node scripts/privacy-probes.mjs"
+    "test": "node scripts/run-tests.mjs"
   },
   "engines": {
     "node": ">=20"

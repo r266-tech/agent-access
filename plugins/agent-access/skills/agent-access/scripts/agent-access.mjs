@@ -7,7 +7,10 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const REGISTRY_PATH = process.env.AGENT_ACCESS_REGISTRY || path.join(ROOT, 'registry.json');
+const PACKAGE_ROOT = path.resolve(ROOT, '../../../..');
+const PACKAGED_REGISTRY_PATH = path.join(ROOT, 'registry.json');
+const REGISTRY_PATH = process.env.AGENT_ACCESS_REGISTRY || PACKAGED_REGISTRY_PATH;
+const MANIFEST_PATH = process.env.AGENT_ACCESS_MANIFEST || path.join(ROOT, 'cli-manifest.json');
 const STATE_DIR = process.env.AGENT_ACCESS_STATE_DIR || path.join(os.homedir(), '.agent-access');
 const AUTH_STATE_PATH = path.join(STATE_DIR, 'auth-state.json');
 const CONTRIBUTIONS_DIR = path.join(STATE_DIR, 'contributions');
@@ -38,7 +41,7 @@ function parseArgv(argv) {
       continue;
     }
     const key = raw;
-    if (['help', 'human', 'json', 'run', 'secret-stdin', 'force'].includes(key)) {
+    if (['help', 'human', 'json', 'run', 'secret-stdin', 'force', 'write', 'allow-removals', 'strict', 'reveal-local'].includes(key)) {
       opts[key] = true;
       continue;
     }
@@ -100,12 +103,31 @@ function writeJson(filePath, value) {
   fs.renameSync(tmp, filePath);
 }
 
-function loadRegistry() {
-  const registry = readJson(REGISTRY_PATH, null);
+function writePublicJson(filePath, value) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  const tmp = `${filePath}.${process.pid}.tmp`;
+  fs.writeFileSync(tmp, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o644 });
+  fs.renameSync(tmp, filePath);
+}
+
+function loadRegistryFrom(filePath) {
+  const registry = readJson(filePath, null);
   if (!registry || !Array.isArray(registry.entries)) {
-    fail('registry_invalid', `Registry is missing or invalid: ${REGISTRY_PATH}`);
+    fail('registry_invalid', `Registry is missing or invalid: ${redactedPath(filePath)}`);
   }
   return registry;
+}
+
+function loadRegistry() {
+  return loadRegistryFrom(REGISTRY_PATH);
+}
+
+function manifestRegistryPath() {
+  return opts.registry ? path.resolve(opts.registry) : PACKAGED_REGISTRY_PATH;
+}
+
+function loadManifestRegistry() {
+  return loadRegistryFrom(manifestRegistryPath());
 }
 
 function normalize(value) {
@@ -393,6 +415,381 @@ function publicEntry(entry) {
   };
 }
 
+function manifestIdentity(entry) {
+  return String(entry.name || entry.command || '').trim();
+}
+
+function manifestAliases(entry) {
+  return [...new Set([
+    entry.name,
+    entry.command,
+    ...(entry.aliases || []),
+    ...(entry.command_aliases || []),
+    ...(entry.targets || []),
+  ].filter(Boolean).map((value) => String(value).trim()).filter(Boolean))];
+}
+
+function entryManifest(entry) {
+  const probes = (entry.quality?.probes || entry.verify?.probes || [])
+    .map(normalizeProbe)
+    .filter(Boolean);
+  return {
+    name: entry.name,
+    command: entry.command,
+    aliases: entry.aliases || [],
+    command_aliases: entry.command_aliases || [],
+    kind: entry.kind || null,
+    targets: entry.targets || [],
+    description: entry.description || null,
+    repository: entry.repository || null,
+    read_write: entry.read_write || null,
+    source_status: entry.source_status || 'unknown',
+    source_strategy: entry.source_strategy || null,
+    source_contract: entry.source_contract || null,
+    auth_methods: entry.auth?.methods || [],
+    planned_auth_methods: entry.auth?.planned_methods || [],
+    auth_broker: entry.auth?.broker || 'unknown',
+    install_type: entry.install?.type || null,
+    update_type: entry.update?.type || null,
+    verify_flow: entry.verify?.required_flow || [],
+    fixture_policy: entry.verify?.fixture_policy || null,
+    probe_count: probes.length,
+    safe_probe_count: probes.filter((probe) => probe.safe).length,
+    error_exit_codes: entry.error_contract?.exit_codes || [],
+    aliases_for_discovery: manifestAliases(entry),
+  };
+}
+
+function buildManifest(registry) {
+  const entries = (registry.entries || [])
+    .map(entryManifest)
+    .sort((a, b) => a.name.localeCompare(b.name));
+  return {
+    version: registry.version || null,
+    generated_from: 'registry.json',
+    generated_at: registry.updated_at || null,
+    entry_count: entries.length,
+    entries,
+  };
+}
+
+function stableJson(value) {
+  return JSON.stringify(value, null, 2);
+}
+
+function validateManifestShape(manifest, findings) {
+  const names = new Map();
+  const aliases = new Map();
+  for (const entry of manifest.entries || []) {
+    const name = manifestIdentity(entry);
+    if (!name) {
+      addContractFinding(findings, 'P0', 'manifest_entry_name_missing', 'Manifest entry missing name', { entry });
+      continue;
+    }
+    if (names.has(normalize(name))) {
+      addContractFinding(findings, 'P0', 'manifest_duplicate_name', `Manifest has duplicate name: ${name}`, { target: name });
+    }
+    names.set(normalize(name), entry);
+    for (const alias of entry.aliases_for_discovery || []) {
+      const key = normalize(alias);
+      if (!key) continue;
+      const owner = aliases.get(key);
+      if (owner && owner !== name) {
+        addContractFinding(findings, 'P1', 'manifest_alias_collision', `Discovery alias ${alias} is shared by ${owner} and ${name}`, {
+          alias,
+          first_target: owner,
+          second_target: name,
+        });
+      } else {
+        aliases.set(key, name);
+      }
+    }
+  }
+}
+
+function compareManifestAgainstExisting(nextManifest, existingManifest, findings) {
+  if (!existingManifest) return;
+  if (existingManifest.version && nextManifest.version && existingManifest.version !== nextManifest.version) {
+    addContractFinding(findings, 'P1', 'manifest_version_changed', `Manifest version changed from ${existingManifest.version} to ${nextManifest.version}`, {
+      previous: existingManifest.version,
+      next: nextManifest.version,
+    });
+  }
+  const previousNames = new Set((existingManifest.entries || []).map((entry) => entry.name).filter(Boolean));
+  const nextNames = new Set((nextManifest.entries || []).map((entry) => entry.name).filter(Boolean));
+  for (const name of previousNames) {
+    if (!nextNames.has(name)) {
+      addContractFinding(findings, opts['allow-removals'] ? 'P1' : 'P0', 'manifest_entry_removed', `Manifest entry removed: ${name}`, {
+        target: name,
+        next_action: 'Pass --allow-removals only when this deletion is intentional and reviewed.',
+      });
+    }
+  }
+}
+
+function baselineManifestFromGit() {
+  if (opts.baseline === 'none') return null;
+  if (opts.baseline) return readJson(path.resolve(opts.baseline), null);
+  const manifestResult = spawnSync('git', [
+    '-C',
+    PACKAGE_ROOT,
+    'show',
+    `HEAD:${path.relative(PACKAGE_ROOT, MANIFEST_PATH)}`,
+  ], {
+    encoding: 'utf8',
+    timeout: 10000,
+    maxBuffer: 1024 * 1024,
+  });
+  if (manifestResult.status === 0 && manifestResult.stdout) {
+    try {
+      return JSON.parse(manifestResult.stdout);
+    } catch {
+      return null;
+    }
+  }
+  const registryResult = spawnSync('git', [
+    '-C',
+    PACKAGE_ROOT,
+    'show',
+    `HEAD:${path.relative(PACKAGE_ROOT, PACKAGED_REGISTRY_PATH)}`,
+  ], {
+    encoding: 'utf8',
+    timeout: 10000,
+    maxBuffer: 1024 * 1024,
+  });
+  if (registryResult.status !== 0 || !registryResult.stdout) return null;
+  try {
+    return buildManifest(JSON.parse(registryResult.stdout));
+  } catch {
+    return null;
+  }
+}
+
+function compareManifestAgainstBaseline(nextManifest, baselineManifest, findings) {
+  if (!baselineManifest) return;
+  const baselineNames = new Set((baselineManifest.entries || []).map((entry) => entry.name).filter(Boolean));
+  const nextNames = new Set((nextManifest.entries || []).map((entry) => entry.name).filter(Boolean));
+  for (const name of baselineNames) {
+    if (!nextNames.has(name)) {
+      addContractFinding(findings, opts['allow-removals'] ? 'P1' : 'P0', 'manifest_baseline_entry_removed', `Manifest baseline entry removed: ${name}`, {
+        target: name,
+        next_action: 'Pass --allow-removals only when this route deletion is intentional and reviewed.',
+      });
+    }
+  }
+}
+
+function cmdBuildManifest() {
+  if (opts.registry && !opts.output) {
+    fail(
+      'manifest_output_required',
+      'build-manifest with --registry requires an explicit --output so private or experimental registries cannot overwrite the packaged manifest.',
+      'agent-access build-manifest --registry PRIVATE_REGISTRY --output /tmp/cli-manifest.json',
+    );
+  }
+  const registry = loadManifestRegistry();
+  const manifestPath = path.resolve(opts.output || MANIFEST_PATH);
+  const manifest = buildManifest(registry);
+  const findings = [];
+  validateManifestShape(manifest, findings);
+  const existing = readJson(manifestPath, null);
+  compareManifestAgainstExisting(manifest, existing, findings);
+  compareManifestAgainstBaseline(manifest, baselineManifestFromGit(), findings);
+  const changed = !existing || stableJson(existing) !== stableJson(manifest);
+  const hardFailures = findings.filter((finding) => finding.severity === 'P0');
+  if (opts.write && hardFailures.length === 0) {
+    writePublicJson(manifestPath, manifest);
+  }
+  write({
+    ok: hardFailures.length === 0 && (!changed || opts.write),
+    command: 'build-manifest',
+    manifest_path: redactedPath(manifestPath),
+    registry_path: redactedPath(manifestRegistryPath()),
+    entry_count: manifest.entry_count,
+    changed,
+    written: Boolean(opts.write && hardFailures.length === 0),
+    dry_run: !opts.write,
+    findings,
+    next_action: changed && !opts.write
+      ? 'Review manifest changes, then rerun with --write. Use --allow-removals only for intentional reviewed deletions.'
+      : null,
+  });
+  process.exit(hardFailures.length === 0 && (!changed || opts.write) ? 0 : 1);
+}
+
+function cmdCheckManifest() {
+  const registry = loadManifestRegistry();
+  const manifestPath = path.resolve(opts.file || opts.manifest || MANIFEST_PATH);
+  const manifest = readJson(manifestPath, null);
+  const expected = buildManifest(registry);
+  const findings = [];
+  if (!manifest) {
+    addContractFinding(findings, 'P0', 'manifest_missing', `CLI manifest is missing: ${redactedPath(manifestPath)}`, {
+      next_action: 'agent-access build-manifest --write',
+    });
+  } else {
+    validateManifestShape(manifest, findings);
+    compareManifestAgainstExisting(expected, manifest, findings);
+    compareManifestAgainstBaseline(expected, baselineManifestFromGit(), findings);
+    if (stableJson(manifest) !== stableJson(expected)) {
+      addContractFinding(findings, 'P0', 'manifest_stale', 'CLI manifest is not the deterministic output of registry.json', {
+        next_action: 'agent-access build-manifest --write',
+      });
+    }
+  }
+  write({
+    ok: findings.filter((finding) => finding.severity === 'P0').length === 0,
+    command: 'check-manifest',
+    manifest_path: redactedPath(manifestPath),
+    registry_path: redactedPath(manifestRegistryPath()),
+    expected_entry_count: expected.entry_count,
+    findings,
+  });
+  process.exit(findings.filter((finding) => finding.severity === 'P0').length === 0 ? 0 : 1);
+}
+
+function sameFilePath(a, b) {
+  if (!a || !b) return false;
+  try {
+    return fs.realpathSync(a) === fs.realpathSync(b);
+  } catch {
+    return path.resolve(a) === path.resolve(b);
+  }
+}
+
+function overlayRegistryCandidates() {
+  const candidates = [];
+  const add = (filePath, source, explicit = false) => {
+    if (!filePath) return;
+    const resolved = path.resolve(filePath);
+    if (sameFilePath(resolved, PACKAGED_REGISTRY_PATH)) return;
+    if (candidates.some((item) => sameFilePath(item.path, resolved))) return;
+    candidates.push({ path: resolved, source, explicit });
+  };
+  add(opts.registry, '--registry', Boolean(opts.registry));
+  add(process.env.AGENT_ACCESS_REGISTRY, 'AGENT_ACCESS_REGISTRY', Boolean(process.env.AGENT_ACCESS_REGISTRY));
+  add(path.join(STATE_DIR, 'registry.json'), 'default-state-registry');
+  add(path.join(STATE_DIR, 'registry.local.json'), 'default-state-registry');
+  add(path.join(STATE_DIR, 'overlays', 'registry.json'), 'default-state-registry');
+  return candidates;
+}
+
+function discoveryKeySet(entry) {
+  return new Set(manifestAliases(entry).map(normalize).filter(Boolean));
+}
+
+function matchingPackagedEntries(packagedEntries, overlayEntry) {
+  const overlayKeys = discoveryKeySet(overlayEntry);
+  return packagedEntries.filter((packagedEntry) => {
+    if (normalize(packagedEntry.name) && normalize(packagedEntry.name) === normalize(overlayEntry.name)) return true;
+    const packagedKeys = discoveryKeySet(packagedEntry);
+    return [...overlayKeys].some((key) => packagedKeys.has(key));
+  });
+}
+
+function localOverlayLabel(entry) {
+  if (opts['reveal-local']) return entry.name || entry.command || '[unknown]';
+  const name = normalize(entry.name || entry.command || '');
+  return name ? '[LOCAL_OVERLAY_ENTRY]' : '[unknown]';
+}
+
+function collectOverlayAudit() {
+  const findings = [];
+  const packaged = readJson(PACKAGED_REGISTRY_PATH, null);
+  if (!packaged || !Array.isArray(packaged.entries)) {
+    addContractFinding(findings, 'P0', 'packaged_registry_invalid', `Packaged registry is invalid: ${redactedPath(PACKAGED_REGISTRY_PATH)}`, {
+      path: redactedPath(PACKAGED_REGISTRY_PATH),
+    });
+    return { candidates: [], overlays_checked: [], findings };
+  }
+  const packagedEntries = packaged.entries || [];
+  const candidates = overlayRegistryCandidates();
+  const overlaysChecked = [];
+  for (const candidate of candidates) {
+    const displayPath = redactedPath(candidate.path);
+    if (!fs.existsSync(candidate.path)) {
+      if (candidate.explicit) {
+        addContractFinding(findings, 'P0', 'overlay_registry_missing', `Overlay registry is missing: ${displayPath}`, {
+          path: displayPath,
+          source: candidate.source,
+        });
+      }
+      continue;
+    }
+    let overlay;
+    try {
+      overlay = readJson(candidate.path, null);
+    } catch (err) {
+      addContractFinding(findings, 'P0', 'overlay_registry_invalid_json', `Overlay registry is not valid JSON: ${displayPath}`, {
+        path: displayPath,
+        source: candidate.source,
+        error: String(err?.message || err),
+      });
+      continue;
+    }
+    if (!overlay || !Array.isArray(overlay.entries)) {
+      addContractFinding(findings, 'P0', 'overlay_registry_invalid', `Overlay registry is missing entries[]: ${displayPath}`, {
+        path: displayPath,
+        source: candidate.source,
+      });
+      continue;
+    }
+    overlaysChecked.push({
+      path: redactedPath(candidate.path),
+      source: candidate.source,
+      version: overlay.version || null,
+      entries: overlay.entries.length,
+    });
+    for (const overlayEntry of overlay.entries) {
+      const matches = matchingPackagedEntries(packagedEntries, overlayEntry);
+      if (matches.length === 0) {
+        addContractFinding(findings, 'P2', 'overlay_local_entry', `Overlay entry is local-only: ${localOverlayLabel(overlayEntry)}`, {
+          target: opts['reveal-local'] ? (overlayEntry.name || overlayEntry.command || null) : '[LOCAL_OVERLAY_ENTRY]',
+          path: redactedPath(candidate.path),
+          source: candidate.source,
+          next_action: 'Keep local-only entries private unless the user explicitly asks to contribute them.',
+        });
+        continue;
+      }
+      for (const packagedEntry of matches) {
+        const sameManifest = stableJson(entryManifest(packagedEntry)) === stableJson(entryManifest(overlayEntry));
+        addContractFinding(findings, 'P1', 'overlay_shadows_packaged_entry', `Overlay entry shadows packaged entry ${packagedEntry.name}`, {
+          target: opts['reveal-local'] ? (overlayEntry.name || overlayEntry.command || null) : '[LOCAL_OVERLAY_ENTRY]',
+          packaged_target: packagedEntry.name,
+          path: redactedPath(candidate.path),
+          source: candidate.source,
+          same_manifest: sameManifest,
+          next_action: sameManifest
+            ? 'Remove the overlay copy unless you intentionally pin this route.'
+            : 'Inspect the overlay before trusting agent-access list/info; it overrides the packaged route.',
+        });
+      }
+    }
+  }
+  return { candidates, overlays_checked: overlaysChecked, findings };
+}
+
+function cmdAuditOverlay() {
+  const audit = collectOverlayAudit();
+  const hardFindings = audit.findings.filter((finding) => finding.severity === 'P0' || (opts.strict && finding.severity === 'P1'));
+  write({
+    ok: hardFindings.length === 0,
+    command: 'audit-overlay',
+    packaged_registry_path: redactedPath(PACKAGED_REGISTRY_PATH),
+    active_registry_path: redactedPath(REGISTRY_PATH),
+    state_dir: redactedPath(STATE_DIR),
+    candidates: audit.candidates.map((candidate) => ({
+      path: redactedPath(candidate.path),
+      source: candidate.source,
+      explicit: candidate.explicit,
+      exists: fs.existsSync(candidate.path),
+    })),
+    overlays_checked: audit.overlays_checked,
+    findings: audit.findings,
+  });
+  process.exit(hardFindings.length === 0 ? 0 : 1);
+}
+
 function readAuthState() {
   return readJson(AUTH_STATE_PATH, { version: '0.1.0', updated_at: null, targets: {} });
 }
@@ -492,6 +889,13 @@ Usage:
   agent-access install NAME [--run]
   agent-access update NAME [--run]
   agent-access doctor [NAME] [--run]
+  agent-access contract --target NAME_OR_URL --task TASK
+  agent-access verify NAME [--run]
+  agent-access build-manifest [--write] [--registry FILE --output FILE] [--allow-removals]
+  agent-access check-manifest [--registry FILE] [--baseline FILE|none]
+  agent-access audit-overlay [--registry FILE] [--strict] [--reveal-local]
+  agent-access validate-contracts
+  agent-access audit-site-patterns
   agent-access audit-public [DIR]
   agent-access auth status [NAME] [--profile PROFILE]
   agent-access auth send-code NAME --phone PHONE [--run]
@@ -575,6 +979,10 @@ function publicCommandEntries(section) {
     ...(item.description ? { description: item.description } : {}),
     active_on_this_platform: commandOsMatches(item),
   }));
+}
+
+function commandDisplay(command, extraArgs = []) {
+  return [...command, ...extraArgs].map((arg) => String(arg));
 }
 
 function runCommandEntries(entries) {
@@ -724,14 +1132,20 @@ function runDoctor(entry) {
 function cmdDoctor(registry, name) {
   const cdpHelperPath = path.join(ROOT, 'scripts', 'check-deps.mjs');
   if (!name) {
+    const overlayAudit = collectOverlayAudit();
     write({
       ok: true,
       command: 'doctor',
       root: '.',
       registry_path: redactedPath(REGISTRY_PATH),
+      manifest_path: redactedPath(MANIFEST_PATH),
       state_dir: redactedPath(STATE_DIR),
       node: process.version,
       entries: registry.entries.map(publicEntry),
+      overlay_audit: {
+        ok: overlayAudit.findings.filter((finding) => finding.severity === 'P0').length === 0,
+        findings: overlayAudit.findings,
+      },
       cdp_next_action: fs.existsSync(cdpHelperPath)
         ? `node ${relPath(cdpHelperPath)}`
         : 'No browser helper is bundled. Configure a browser adapter explicitly before using CDP fallback.',
@@ -758,6 +1172,321 @@ function cmdDoctor(registry, name) {
     doctor_run: doctorRun,
   });
   if (opts.run && !doctorRun.ok) process.exit(1);
+}
+
+function looksLikeUrl(value) {
+  try {
+    const url = new URL(value);
+    return Boolean(url.hostname);
+  } catch {
+    return /^[A-Za-z0-9.-]+\.[A-Za-z]{2,}(?:\/|$)/.test(String(value || ''));
+  }
+}
+
+function hostnameFromTarget(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  try {
+    return new URL(raw.includes('://') ? raw : `https://${raw}`).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+function scoreEntryForTarget(entry, target) {
+  const needle = normalize(target);
+  if (!needle) return 0;
+  const host = hostnameFromTarget(target);
+  const domainLikeTarget = Boolean(host && (host.includes('.') || String(target || '').includes('://')));
+  const fields = [
+    entry.name,
+    entry.command,
+    ...(entry.aliases || []),
+    ...(entry.targets || []),
+  ].filter(Boolean);
+  let score = 0;
+  for (const field of fields) {
+    const text = normalize(field);
+    if (!text) continue;
+    if (text === needle) {
+      score = Math.max(score, 100);
+      continue;
+    }
+    if (domainLikeTarget) {
+      const fieldHost = hostnameFromTarget(text) || text;
+      if (fieldHost.includes('.') && (host === fieldHost || host.endsWith(`.${fieldHost}`) || fieldHost.endsWith(`.${host}`))) {
+        score = Math.max(score, 90);
+      }
+      continue;
+    }
+    if (needle.length >= 3 && text.length >= 3 && (text.includes(needle) || needle.includes(text))) {
+      score = Math.max(score, 50);
+    }
+  }
+  return score;
+}
+
+function rankedEntries(registry, target) {
+  return registry.entries
+    .map((entry) => ({ entry, score: scoreEntryForTarget(entry, target) }))
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score || a.entry.name.localeCompare(b.entry.name));
+}
+
+function sourceTierForEntry(entry) {
+  return {
+    strategy: entry.source_strategy || null,
+    contract: entry.source_contract || null,
+    note: entry.source_note || null,
+  };
+}
+
+function cmdContract(registry) {
+  const target = String(opts.target || pos[1] || '').trim();
+  const task = String(opts.task || opts.goal || '').trim();
+  if (!target) {
+    fail('target_required', 'contract requires --target NAME_OR_URL.', 'agent-access contract --target xhs --task "read note comments"');
+  }
+  const ranked = rankedEntries(registry, target);
+  const selected = ranked[0]?.entry || null;
+  const targetHost = hostnameFromTarget(target);
+  const targetLooksUrl = looksLikeUrl(target);
+  const writeIntent = /\b(post|publish|send|delete|remove|upload|comment|reply|follow|unfollow|rate|mark|buy|order|pay|trade|control|turn\s+on|turn\s+off|apply)\b/i.test(task);
+  const selectedSurface = selected
+    ? {
+      kind: 'registered-cli',
+      entry: publicEntry(selected),
+      availability: commandAvailability(selected),
+      source: sourceTierForEntry(selected),
+      verify: selected.verify || null,
+    }
+    : {
+      kind: targetLooksUrl ? 'unregistered-url' : 'unregistered-target',
+      source: null,
+    };
+  const rejectedSurfaces = [];
+  if (!selected) {
+    rejectedSurfaces.push({
+      surface: 'registered-cli',
+      reason: 'No registry entry matched target.',
+    });
+  }
+  if (targetLooksUrl && !selected) {
+    rejectedSurfaces.push({
+      surface: 'browser-first',
+      reason: 'Browser fallback is not first choice; inspect public/API/fetch route before CDP unless the page is session-bound or dynamic.',
+    });
+  }
+  const nextProbe = selected
+    ? `agent-access info ${selected.name} && agent-access doctor ${selected.name}${opts.run ? ' --run' : ''}`
+    : (targetLooksUrl
+      ? `Try primary source/API/fetch for ${targetHost || target}; enter Edge CDP only if CLI/API/fetch cannot cover the task.`
+      : 'agent-access list --target QUERY');
+  write({
+    ok: true,
+    command: 'contract',
+    goal: task || null,
+    target,
+    target_host: targetHost,
+    selected_surface: selectedSurface,
+    rejected_surfaces: rejectedSurfaces,
+    primary_sources_required: true,
+    auth_boundary: selected
+      ? {
+        methods: selected.auth?.methods || [],
+        planned_methods: selected.auth?.planned_methods || [],
+        broker: selected.auth?.broker || 'unknown',
+        local_state_only: Boolean(selected.auth?.local_state_only),
+      }
+      : {
+        methods: [],
+        broker: 'unknown',
+        guidance: 'Do not ask for login until target data/action is actually blocked and login is likely to unblock it.',
+      },
+    write_boundary: selected
+      ? {
+        read_write: selected.read_write || null,
+        write_intent_detected: writeIntent,
+        write_policy: selected.write_policy || null,
+        requires_user_approval: writeIntent || ['write-capable', 'external-action'].includes(selected.read_write),
+      }
+      : {
+        write_intent_detected: writeIntent,
+        requires_user_approval: writeIntent,
+      },
+    site_pattern_refs: selected ? sitePatternRefs(selected).map(relPath) : [],
+    next_probe: nextProbe,
+    references: [
+      relPath(path.join(ROOT, 'references', 'tool-routing.md')),
+      relPath(path.join(ROOT, 'references', 'source-contracts.md')),
+      relPath(path.join(ROOT, 'references', 'cli-generation.md')),
+    ],
+  });
+}
+
+function localVerifySpecPath(target, commandName = null) {
+  const safeTarget = safeSlug(target);
+  const safeCommand = commandName ? safeSlug(commandName) : 'default';
+  return path.join(STATE_DIR, 'sites', safeTarget, 'verify', `${safeCommand}.json`);
+}
+
+function successCriteriaMet(result, criteria = {}) {
+  const checks = [];
+  if (criteria.exit_code !== undefined) {
+    checks.push({
+      name: 'exit_code',
+      ok: result.status === Number(criteria.exit_code),
+      expected: Number(criteria.exit_code),
+      actual: result.status,
+    });
+  }
+  if (criteria.stdout_includes) {
+    const values = Array.isArray(criteria.stdout_includes) ? criteria.stdout_includes : [criteria.stdout_includes];
+    for (const value of values) {
+      checks.push({
+        name: 'stdout_includes',
+        ok: String(result.stdout || '').includes(String(value)),
+        expected: String(value),
+      });
+    }
+  }
+  if (criteria.stderr_includes) {
+    const values = Array.isArray(criteria.stderr_includes) ? criteria.stderr_includes : [criteria.stderr_includes];
+    for (const value of values) {
+      checks.push({
+        name: 'stderr_includes',
+        ok: String(result.stderr || '').includes(String(value)),
+        expected: String(value),
+      });
+    }
+  }
+  if (criteria.json_path) {
+    const paths = Array.isArray(criteria.json_path) ? criteria.json_path : [criteria.json_path];
+    let parsed;
+    try {
+      parsed = JSON.parse(result.stdout || '');
+    } catch {
+      parsed = null;
+    }
+    for (const rawPath of paths) {
+      const parts = String(rawPath).replace(/^\$\./, '').split('.').filter(Boolean);
+      let cursor = parsed;
+      for (const part of parts) {
+        if (cursor && typeof cursor === 'object' && part in cursor) cursor = cursor[part];
+        else {
+          cursor = undefined;
+          break;
+        }
+      }
+      checks.push({
+        name: 'json_path',
+        ok: cursor !== undefined,
+        expected: rawPath,
+      });
+    }
+  }
+  if (checks.length === 0) {
+    checks.push({ name: 'exit_zero', ok: result.status === 0, expected: 0, actual: result.status });
+  }
+  return { ok: checks.every((check) => check.ok), checks };
+}
+
+function normalizeProbe(probe, index = 0) {
+  if (!probe || typeof probe !== 'object') return null;
+  const command = Array.isArray(probe.command) ? probe.command : null;
+  if (!command || command.length === 0) return null;
+  return {
+    name: probe.name || `probe-${index + 1}`,
+    kind: probe.kind || 'command',
+    command,
+    safe: probe.safe !== false,
+    requires_auth: probe.requires_auth === true,
+    success_criteria: probe.success_criteria || {},
+    last_verified_at: probe.last_verified_at || null,
+  };
+}
+
+function runProbe(probe) {
+  if (!probe.safe) {
+    return {
+      name: probe.name,
+      ran: false,
+      ok: false,
+      reason: 'probe_not_marked_safe',
+      command: probe.command,
+    };
+  }
+  if (!opts.run) {
+    return {
+      name: probe.name,
+      ran: false,
+      ok: true,
+      reason: 'pass --run to execute safe probe',
+      command: probe.command,
+      success_criteria: probe.success_criteria,
+    };
+  }
+  const result = sanitizeCommandResult(runCommand(probe.command));
+  const criteria = successCriteriaMet(result, probe.success_criteria);
+  const explicitExitCode = probe.success_criteria && probe.success_criteria.exit_code !== undefined;
+  return {
+    name: probe.name,
+    ran: result.ran,
+    ok: explicitExitCode ? criteria.ok : (result.ok && criteria.ok),
+    command: result.command,
+    status: result.status,
+    signal: result.signal,
+    stdout: result.stdout,
+    stderr: result.stderr,
+    success_criteria: criteria,
+  };
+}
+
+function localVerifySpec(targetName) {
+  const commandName = opts.command || opts.probe || null;
+  const specPath = opts.file
+    ? path.resolve(opts.file)
+    : localVerifySpecPath(targetName, commandName);
+  if (!fs.existsSync(specPath)) return { specPath, spec: null };
+  return { specPath, spec: readJson(specPath, null) };
+}
+
+function cmdVerify(registry, name) {
+  const entry = requireEntry(registry, name);
+  const registryProbes = (entry.quality?.probes || entry.verify?.probes || [])
+    .map(normalizeProbe)
+    .filter(Boolean);
+  const { specPath, spec } = localVerifySpec(entry.name);
+  const specProbes = (spec?.probes || [])
+    .map(normalizeProbe)
+    .filter(Boolean);
+  const probes = [...registryProbes, ...specProbes];
+  if (probes.length === 0) {
+    write({
+      ok: false,
+      command: 'verify',
+      target: entry.name,
+      verify_contract: entry.verify || null,
+      local_spec_path: redactedPath(specPath),
+      results: [],
+      next_action: `Create ${redactedPath(specPath)} with {"probes":[{"name":"help","command":["${entry.command || entry.name}","--help"],"safe":true}]}, or add quality.probes to registry.json.`,
+    });
+    process.exit(1);
+  }
+  const results = probes.map(runProbe);
+  const ok = results.every((result) => result.ok);
+  write({
+    ok,
+    command: 'verify',
+    target: entry.name,
+    dry_run: !opts.run,
+    verify_contract: entry.verify || null,
+    local_spec_path: redactedPath(specPath),
+    probe_count: probes.length,
+    results,
+    next_action: opts.run ? null : `agent-access verify ${entry.name} --run`,
+  });
+  process.exit(ok ? 0 : 1);
 }
 
 function walkFiles(root, result = []) {
@@ -839,6 +1568,292 @@ function cmdAuditPublic(dir) {
     command: 'audit-public',
     root: redactedPath(auditRoot),
     file_count: walkFiles(auditRoot).length,
+    findings,
+  });
+  process.exit(findings.length === 0 ? 0 : 1);
+}
+
+function parseFrontmatter(content) {
+  const lines = content.split(/\r?\n/);
+  if (lines[0] !== '---') return { ok: false, data: {}, body: content };
+  const end = lines.findIndex((line, index) => index > 0 && line === '---');
+  if (end < 0) return { ok: false, data: {}, body: content };
+  const data = {};
+  for (const line of lines.slice(1, end)) {
+    const match = line.match(/^([A-Za-z0-9_-]+):\s*(.*)$/);
+    if (!match) continue;
+    const [, key, rawValue] = match;
+    const value = rawValue.trim();
+    if (value === '[]') data[key] = [];
+    else if (value.startsWith('[') && value.endsWith(']')) {
+      data[key] = value.slice(1, -1).split(',').map((item) => item.trim()).filter(Boolean);
+    } else data[key] = value.replace(/^["']|["']$/g, '');
+  }
+  return { ok: true, data, body: lines.slice(end + 1).join('\n') };
+}
+
+function cmdAuditSitePatterns() {
+  const root = path.join(ROOT, 'references', 'site-patterns');
+  const findings = [];
+  if (!fs.existsSync(root)) {
+    findings.push({ severity: 'P0', code: 'site_patterns_missing', path: relPath(root), line: null, match: 'missing directory' });
+  }
+  const files = fs.existsSync(root)
+    ? walkFiles(root).filter((filePath) => filePath.endsWith('.md'))
+    : [];
+  const sensitivePatterns = [
+    { code: 'credential_like_value', re: /\b(?:password|passwd|secret|token|cookie|authorization|api[-_]?key|ck)\b\s*[:=]\s*["']?[A-Za-z0-9._~+/=-]{8,}/i },
+    { code: 'bearer_value', re: /Bearer\s+[A-Za-z0-9._~+/=-]{8,}/i },
+    { code: 'phone_number', re: /(?<!\d)(?:\+?86[\s-]?)?1[3-9]\d[\d\s-]{7,}\d(?!\d)/ },
+  ];
+  for (const filePath of files) {
+    const rel = relPath(filePath);
+    const content = fs.readFileSync(filePath, 'utf8');
+    const parsed = parseFrontmatter(content);
+    if (!parsed.ok) {
+      findings.push({ severity: 'P1', code: 'frontmatter_missing', path: rel, line: 1, match: 'expected YAML frontmatter' });
+    }
+    const visibility = parsed.data.visibility || null;
+    if (!['local-private', 'public-safe'].includes(visibility)) {
+      findings.push({ severity: 'P1', code: 'visibility_missing', path: rel, line: 1, match: 'visibility must be local-private or public-safe' });
+    }
+    if (!parsed.data.verified_at) {
+      findings.push({ severity: 'P1', code: 'verified_at_missing', path: rel, line: 1, match: 'verified_at is required' });
+    }
+    if (!parsed.data.redaction_status) {
+      findings.push({ severity: 'P1', code: 'redaction_status_missing', path: rel, line: 1, match: 'redaction_status is required' });
+    }
+    content.split(/\r?\n/).forEach((line, index) => {
+      for (const pattern of sensitivePatterns) {
+        if (pattern.re.test(line)) {
+          findings.push({
+            severity: visibility === 'public-safe' ? 'P0' : 'P1',
+            code: pattern.code,
+            path: rel,
+            line: index + 1,
+            match: redactString(line).slice(0, 240),
+          });
+        }
+      }
+    });
+  }
+  const hardFailures = findings.filter((finding) => finding.severity === 'P0');
+  write({
+    ok: hardFailures.length === 0,
+    command: 'audit-site-patterns',
+    root: redactedPath(root),
+    file_count: files.length,
+    findings,
+  });
+  process.exit(hardFailures.length === 0 ? 0 : 1);
+}
+
+const SOURCE_STRATEGIES = new Set([
+  'PUBLIC_API',
+  'COOKIE_API',
+  'DOM_STATE',
+  'UI_SELECTOR',
+  'PAGE_FETCH',
+  'INTERCEPT',
+  'LOCAL_APP_DB',
+  'LOCAL_APP_SCRIPT',
+  'DEVICE_API',
+  'EXTERNAL_CLI',
+]);
+
+const SOURCE_CONTRACTS = new Set([
+  'stable',
+  'visible-ui',
+  'internal-unstable',
+  'local-data',
+  'local-control',
+]);
+
+const FIXTURE_POLICIES = new Set([
+  'redacted-fixture',
+  'live-probe',
+  'manual-only',
+]);
+
+const VERIFY_FLOW_STEPS = new Set([
+  'help',
+  'doctor',
+  'auth-status',
+  'list',
+  'search',
+  'detail',
+  'follow-up',
+  'pagination',
+  'filter',
+  'error-path',
+  'dry-run',
+  'apply',
+  'read-back',
+]);
+
+const REQUIRED_ERROR_EXIT_CODES = new Set([1, 2, 66, 75, 77]);
+
+function addContractFinding(findings, severity, code, message, details = {}) {
+  findings.push({ severity, code, message, ...details });
+}
+
+function validateReferenceContracts(findings) {
+  const required = [
+    {
+      file: 'references/source-contracts.md',
+      headings: ['## Strategy Classes', '## Required Strategy Note', '## Registry Fields', '## Promotion Gate'],
+    },
+    {
+      file: 'references/cli-generation.md',
+      headings: ['## Source Strategy Gate', '## Verify And Fixtures', '## Site Memory'],
+    },
+    {
+      file: 'references/cli-registry.md',
+      headings: ['## Verify Contract'],
+    },
+    {
+      file: 'references/cdp-api.md',
+      headings: ['## Browser Task Envelope', '## Structured Browser Envelope', '## Site Memory After Browser Discovery'],
+    },
+    {
+      file: 'references/cli-errors.md',
+      headings: ['## Exit Codes', '## Error Envelope', '## Registry Requirements'],
+    },
+    {
+      file: 'references/site-patterns/_template.md',
+      headings: ['## Scope', '## CLI Promotion', '## Redaction Notes'],
+    },
+    {
+      file: 'references/tool-routing.md',
+      headings: ['## Routing Contract'],
+    },
+  ];
+  for (const item of required) {
+    const filePath = path.join(ROOT, item.file);
+    let content = '';
+    try {
+      content = fs.readFileSync(filePath, 'utf8');
+    } catch (err) {
+      addContractFinding(findings, 'P0', 'reference_missing', `${item.file} is missing`, { path: item.file });
+      continue;
+    }
+    for (const heading of item.headings) {
+      if (!content.includes(heading)) {
+        addContractFinding(findings, 'P1', 'reference_heading_missing', `${item.file} missing ${heading}`, { path: item.file, heading });
+      }
+    }
+  }
+}
+
+function validateRegistryContracts(registry, findings) {
+  for (const entry of registry.entries || []) {
+    const target = entry.name || '[unknown]';
+    if (!entry.source_strategy || !SOURCE_STRATEGIES.has(entry.source_strategy)) {
+      addContractFinding(findings, 'P0', 'invalid_source_strategy', `${target} has invalid or missing source_strategy`, {
+        target,
+        value: entry.source_strategy || null,
+        allowed: [...SOURCE_STRATEGIES],
+      });
+    }
+    if (!entry.source_contract || !SOURCE_CONTRACTS.has(entry.source_contract)) {
+      addContractFinding(findings, 'P0', 'invalid_source_contract', `${target} has invalid or missing source_contract`, {
+        target,
+        value: entry.source_contract || null,
+        allowed: [...SOURCE_CONTRACTS],
+      });
+    }
+    if (!entry.source_note || typeof entry.source_note !== 'string') {
+      addContractFinding(findings, 'P1', 'source_note_missing', `${target} missing source_note`, { target });
+    }
+    const verify = entry.verify || null;
+    if (!verify || typeof verify !== 'object') {
+      addContractFinding(findings, 'P0', 'verify_missing', `${target} missing verify contract`, { target });
+      continue;
+    }
+    if (!Array.isArray(verify.required_flow) || verify.required_flow.length === 0) {
+      addContractFinding(findings, 'P0', 'verify_flow_missing', `${target} verify.required_flow must be a non-empty array`, { target });
+    } else {
+      for (const step of verify.required_flow) {
+        if (!VERIFY_FLOW_STEPS.has(step)) {
+          addContractFinding(findings, 'P1', 'verify_flow_invalid_step', `${target} has invalid verify step: ${step}`, {
+            target,
+            step,
+            allowed: [...VERIFY_FLOW_STEPS],
+          });
+        }
+      }
+    }
+    if (!FIXTURE_POLICIES.has(verify.fixture_policy)) {
+      addContractFinding(findings, 'P0', 'fixture_policy_invalid', `${target} has invalid verify.fixture_policy`, {
+        target,
+        value: verify.fixture_policy || null,
+        allowed: [...FIXTURE_POLICIES],
+      });
+    }
+    const probes = entry.quality?.probes || verify.probes || [];
+    if (!Array.isArray(probes) || probes.length === 0) {
+      addContractFinding(findings, 'P0', 'quality_probe_missing', `${target} missing quality.probes or verify.probes`, { target });
+    } else {
+      probes.forEach((probe, index) => {
+        if (!probe?.name) addContractFinding(findings, 'P1', 'probe_name_missing', `${target} probe ${index + 1} missing name`, { target });
+        if (!Array.isArray(probe?.command) || probe.command.length === 0) {
+          addContractFinding(findings, 'P0', 'probe_command_missing', `${target} probe ${probe?.name || index + 1} missing command array`, { target });
+        }
+        if (probe?.safe !== true) {
+          addContractFinding(findings, 'P0', 'probe_not_safe', `${target} probe ${probe?.name || index + 1} must explicitly set safe: true`, { target });
+        }
+      });
+    }
+    const errorContract = entry.error_contract || null;
+    if (!errorContract || typeof errorContract !== 'object') {
+      addContractFinding(findings, 'P0', 'error_contract_missing', `${target} missing error_contract`, { target });
+    } else {
+      const exitCodes = new Set(errorContract.exit_codes || []);
+      for (const code of REQUIRED_ERROR_EXIT_CODES) {
+        if (!exitCodes.has(code)) {
+          addContractFinding(findings, 'P1', 'error_exit_code_missing', `${target} error_contract missing exit code ${code}`, { target, code });
+        }
+      }
+      for (const key of ['json_error_envelope', 'next_action', 'no_sentinel_rows']) {
+        if (errorContract[key] !== true) {
+          addContractFinding(findings, 'P0', 'error_contract_flag_missing', `${target} error_contract.${key} must be true`, { target, key });
+        }
+      }
+    }
+    if (['write-capable', 'external-action'].includes(entry.read_write)) {
+      if (!entry.write_policy || typeof entry.write_policy !== 'string') {
+        addContractFinding(findings, 'P0', 'write_policy_missing', `${target} is ${entry.read_write} but missing write_policy`, { target });
+      }
+      const flow = new Set(verify.required_flow || []);
+      if (!flow.has('dry-run') && !flow.has('apply')) {
+        addContractFinding(findings, 'P0', 'write_verify_gate_missing', `${target} write route must declare dry-run or apply verification`, { target });
+      }
+    }
+  }
+}
+
+function cmdValidateContracts(registry) {
+  const findings = [];
+  validateReferenceContracts(findings);
+  validateRegistryContracts(registry, findings);
+  write({
+    ok: findings.length === 0,
+    command: 'validate-contracts',
+    registry: {
+      version: registry.version,
+      updated_at: registry.updated_at,
+      path: redactedPath(REGISTRY_PATH),
+      entries: Array.isArray(registry.entries) ? registry.entries.length : 0,
+    },
+    references_checked: [
+      'references/source-contracts.md',
+      'references/cli-generation.md',
+      'references/cli-registry.md',
+      'references/cdp-api.md',
+      'references/cli-errors.md',
+      'references/site-patterns/_template.md',
+      'references/tool-routing.md',
+    ],
     findings,
   });
   process.exit(findings.length === 0 ? 0 : 1);
@@ -1338,15 +2353,24 @@ async function main() {
     return;
   }
 
-  const registry = loadRegistry();
   const [command, subcommand, target] = pos;
+
+  if (command === 'audit-overlay') return cmdAuditOverlay();
+  if (command === 'audit-site-patterns') return cmdAuditSitePatterns();
+  if (command === 'audit-public') return cmdAuditPublic(subcommand);
+  if (command === 'build-manifest') return cmdBuildManifest();
+  if (command === 'check-manifest') return cmdCheckManifest();
+
+  const registry = loadRegistry();
 
   if (command === 'list') return cmdList(registry);
   if (command === 'info') return cmdInfo(registry, subcommand);
   if (command === 'install') return cmdInstall(registry, subcommand);
   if (command === 'update') return cmdUpdate(registry, subcommand);
   if (command === 'doctor') return cmdDoctor(registry, subcommand);
-  if (command === 'audit-public') return cmdAuditPublic(subcommand);
+  if (command === 'contract') return cmdContract(registry);
+  if (command === 'verify') return cmdVerify(registry, subcommand);
+  if (command === 'validate-contracts') return cmdValidateContracts(registry);
 
   if (command === 'auth') {
     if (subcommand === 'status') return authStatus(registry, target);

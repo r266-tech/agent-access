@@ -6,7 +6,7 @@ description:
   Agent Access 是通用 agent 薄访问层：给 Claude Code、Codex、Cursor、OpenClaw、Hermes 等 agent 把网站、GUI 软件、本地 app、API 和重复联网流程路由到 agent-native CLI、结构化检索、浏览器/CDP 兜底、Computer Use 或显式贡献草稿。
 metadata:
   author: Agent Access 贡献者
-  version: "0.2.2"
+  version: "0.2.4"
 ---
 
 # Agent Access Skill
@@ -54,7 +54,7 @@ agent-access info xhs
 - `dp` / `dianping`：大众点评店铺和评价读取；浏览器/session 或 stdin cookie 导入；不导出 cookie。
 - `xhs`：小红书 / Rednote 读取；用户 session 留本机；写操作必须显式命令和用户确认。
 
-`registry.json` 里的 `source_status` 说明 route 是否已有公开安装器，还是仅有公开契约、独立源码待发布。
+`registry.json` 里的 `source_status` 说明 route 是否已有公开安装器，还是仅有公开契约、独立源码待发布。`cli-manifest.json` 是 registry 的确定性发现索引；发布前必须通过 `agent-access check-manifest`，避免 route 静默消失。若用户配置了 `AGENT_ACCESS_REGISTRY` 或 `~/.agent-access/registry*.json` 私有覆盖，先跑 `agent-access audit-overlay` 看清本地条目是否遮蔽了打包 route。
 
 ## Capability Discovery
 
@@ -66,6 +66,8 @@ agent-access install <name>        # dry-run plan
 agent-access install <name> --run  # 只有明确要执行时才加
 agent-access update <name>         # dry-run plan
 agent-access doctor <name> --run
+agent-access check-manifest
+agent-access audit-overlay
 
 # 如果 bin 不在 PATH，从当前 skill 目录运行：
 node scripts/agent-access.mjs list

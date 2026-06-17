@@ -1,7 +1,7 @@
 {
   "name": "agent-access",
   "description": "面向中文开发者和中文用户的通用 AI agent 访问层：把网站、App、API 和重复流程路由到 agent-native CLI、结构化检索、浏览器/GUI 兜底或贡献草稿。",
-  "version": "0.2.2",
+  "version": "0.2.4",
   "author": {
     "name": "Agent Access 贡献者"
   },

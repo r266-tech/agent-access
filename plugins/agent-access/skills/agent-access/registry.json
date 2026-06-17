@@ -1,5 +1,5 @@
 {
-  "version": "0.2.0",
+  "version": "0.2.4",
   "updated_at": "2026-06-17",
   "architecture": {
     "core": "Agent Access is a thin Codex plugin and registry. It does not bundle user sessions, cookies, tokens, private browser data, or local CLI binaries.",
@@ -104,7 +104,57 @@
       "quality": {
         "level": "hot-route",
         "last_verified_at": "2026-06-17",
-        "verification": "Local wechat-cli 1.6.19 help/version verified; public GitHub release v1.6.19 verified."
+        "verification": "Local wechat-cli 1.6.19 help/version verified; public GitHub release v1.6.19 verified.",
+        "probes": [
+          {
+            "name": "help",
+            "kind": "command",
+            "command": [
+              "wechat-cli",
+              "--help"
+            ],
+            "safe": true,
+            "requires_auth": false,
+            "success_criteria": {
+              "exit_code": 0
+            },
+            "last_verified_at": "2026-06-17"
+          }
+        ]
+      },
+      "source_strategy": "LOCAL_APP_DB",
+      "source_contract": "local-data",
+      "source_note": "Local WeChat database/cache is the durable source; user data remains local.",
+      "verify": {
+        "required_flow": [
+          "help",
+          "doctor",
+          "auth-status",
+          "list",
+          "detail",
+          "follow-up",
+          "error-path"
+        ],
+        "fixture_policy": "manual-only",
+        "last_run_at": "2026-06-17",
+        "evidence": "Local wechat-cli 1.6.19 help/version verified; public GitHub release v1.6.19 verified.",
+        "residual_risk": null
+      },
+      "error_contract": {
+        "exit_codes": [
+          0,
+          1,
+          2,
+          66,
+          69,
+          75,
+          77,
+          78,
+          130
+        ],
+        "json_error_envelope": true,
+        "next_action": true,
+        "no_sentinel_rows": true
       }
     },
     {
@@ -160,7 +210,56 @@
       "quality": {
         "level": "hot-route-candidate",
         "last_verified_at": "2026-06-17",
-        "verification": "Local pmkt 0.1.0 help verified; public standalone repo pending."
+        "verification": "Local pmkt 0.1.0 help verified; public standalone repo pending.",
+        "probes": [
+          {
+            "name": "help",
+            "kind": "command",
+            "command": [
+              "pmkt",
+              "--help"
+            ],
+            "safe": true,
+            "requires_auth": false,
+            "success_criteria": {
+              "exit_code": 0
+            },
+            "last_verified_at": "2026-06-17"
+          }
+        ]
+      },
+      "source_strategy": "PUBLIC_API",
+      "source_contract": "stable",
+      "source_note": "Public Polymarket endpoints and market pages provide read-only market data.",
+      "verify": {
+        "required_flow": [
+          "help",
+          "doctor",
+          "list",
+          "detail",
+          "follow-up",
+          "error-path"
+        ],
+        "fixture_policy": "live-probe",
+        "last_run_at": "2026-06-17",
+        "evidence": "Local pmkt 0.1.0 help verified; public standalone repo pending.",
+        "residual_risk": "Public standalone companion CLI source or install path is pending."
+      },
+      "error_contract": {
+        "exit_codes": [
+          0,
+          1,
+          2,
+          66,
+          69,
+          75,
+          77,
+          78,
+          130
+        ],
+        "json_error_envelope": true,
+        "next_action": true,
+        "no_sentinel_rows": true
       }
     },
     {
@@ -249,7 +348,57 @@
       "quality": {
         "level": "hot-route",
         "last_verified_at": "2026-06-17",
-        "verification": "Public r266-tech/xiaoyuzhou repo and local xyz help verified."
+        "verification": "Public r266-tech/xiaoyuzhou repo and local xyz help verified.",
+        "probes": [
+          {
+            "name": "help",
+            "kind": "command",
+            "command": [
+              "xyz",
+              "--help"
+            ],
+            "safe": true,
+            "requires_auth": false,
+            "success_criteria": {
+              "exit_code": 0
+            },
+            "last_verified_at": "2026-06-17"
+          }
+        ]
+      },
+      "source_strategy": "COOKIE_API",
+      "source_contract": "stable",
+      "source_note": "Xiaoyuzhou reads rely on the companion CLI session and stable read endpoints.",
+      "verify": {
+        "required_flow": [
+          "help",
+          "doctor",
+          "auth-status",
+          "list",
+          "detail",
+          "follow-up",
+          "error-path"
+        ],
+        "fixture_policy": "manual-only",
+        "last_run_at": "2026-06-17",
+        "evidence": "Public r266-tech/xiaoyuzhou repo and local xyz help verified.",
+        "residual_risk": null
+      },
+      "error_contract": {
+        "exit_codes": [
+          0,
+          1,
+          2,
+          66,
+          69,
+          75,
+          77,
+          78,
+          130
+        ],
+        "json_error_envelope": true,
+        "next_action": true,
+        "no_sentinel_rows": true
       }
     },
     {
@@ -322,7 +471,58 @@
       "quality": {
         "level": "hot-route-candidate",
         "last_verified_at": "2026-06-17",
-        "verification": "Local Douban CLI help and prior movie/status flows verified; public standalone repo pending."
+        "verification": "Local Douban CLI help and prior movie/status flows verified; public standalone repo pending.",
+        "probes": [
+          {
+            "name": "help",
+            "kind": "command",
+            "command": [
+              "douban",
+              "--help"
+            ],
+            "safe": true,
+            "requires_auth": false,
+            "success_criteria": {
+              "exit_code": 0
+            },
+            "last_verified_at": "2026-06-17"
+          }
+        ]
+      },
+      "source_strategy": "UI_SELECTOR",
+      "source_contract": "visible-ui",
+      "source_note": "Douban read/write routes use user-visible pages; writes require explicit apply and read-back.",
+      "verify": {
+        "required_flow": [
+          "help",
+          "doctor",
+          "auth-status",
+          "search",
+          "detail",
+          "dry-run",
+          "read-back",
+          "error-path"
+        ],
+        "fixture_policy": "manual-only",
+        "last_run_at": "2026-06-17",
+        "evidence": "Local Douban CLI help and prior movie/status flows verified; public standalone repo pending.",
+        "residual_risk": "Public standalone companion CLI source or install path is pending."
+      },
+      "error_contract": {
+        "exit_codes": [
+          0,
+          1,
+          2,
+          66,
+          69,
+          75,
+          77,
+          78,
+          130
+        ],
+        "json_error_envelope": true,
+        "next_action": true,
+        "no_sentinel_rows": true
       }
     },
     {
@@ -401,7 +601,57 @@
       "quality": {
         "level": "hot-route-candidate",
         "last_verified_at": "2026-06-17",
-        "verification": "Local dp/dianping help verified; public standalone repo pending."
+        "verification": "Local dp/dianping help verified; public standalone repo pending.",
+        "probes": [
+          {
+            "name": "help",
+            "kind": "command",
+            "command": [
+              "dp",
+              "--help"
+            ],
+            "safe": true,
+            "requires_auth": false,
+            "success_criteria": {
+              "exit_code": 0
+            },
+            "last_verified_at": "2026-06-17"
+          }
+        ]
+      },
+      "source_strategy": "COOKIE_API",
+      "source_contract": "stable",
+      "source_note": "Dianping route prefers stable page/API reads through the companion CLI and local session.",
+      "verify": {
+        "required_flow": [
+          "help",
+          "doctor",
+          "auth-status",
+          "list",
+          "detail",
+          "follow-up",
+          "error-path"
+        ],
+        "fixture_policy": "manual-only",
+        "last_run_at": "2026-06-17",
+        "evidence": "Local dp/dianping help verified; public standalone repo pending.",
+        "residual_risk": "Public standalone companion CLI source or install path is pending."
+      },
+      "error_contract": {
+        "exit_codes": [
+          0,
+          1,
+          2,
+          66,
+          69,
+          75,
+          77,
+          78,
+          130
+        ],
+        "json_error_envelope": true,
+        "next_action": true,
+        "no_sentinel_rows": true
       }
     },
     {
@@ -474,7 +724,58 @@
       "quality": {
         "level": "hot-route-candidate",
         "last_verified_at": "2026-06-17",
-        "verification": "Local xhs wrapper help verified; public standalone wrapper repo pending."
+        "verification": "Local xhs wrapper help verified; public standalone wrapper repo pending.",
+        "probes": [
+          {
+            "name": "help",
+            "kind": "command",
+            "command": [
+              "xhs",
+              "--help"
+            ],
+            "safe": true,
+            "requires_auth": false,
+            "success_criteria": {
+              "exit_code": 0
+            },
+            "last_verified_at": "2026-06-17"
+          }
+        ]
+      },
+      "source_strategy": "INTERCEPT",
+      "source_contract": "internal-unstable",
+      "source_note": "XHS web reads often depend on session/runtime traffic; public adapter remains source-pending.",
+      "verify": {
+        "required_flow": [
+          "help",
+          "doctor",
+          "auth-status",
+          "search",
+          "detail",
+          "dry-run",
+          "read-back",
+          "error-path"
+        ],
+        "fixture_policy": "manual-only",
+        "last_run_at": "2026-06-17",
+        "evidence": "Local xhs wrapper help verified; public standalone wrapper repo pending.",
+        "residual_risk": "Public standalone companion CLI source or install path is pending."
+      },
+      "error_contract": {
+        "exit_codes": [
+          0,
+          1,
+          2,
+          66,
+          69,
+          75,
+          77,
+          78,
+          130
+        ],
+        "json_error_envelope": true,
+        "next_action": true,
+        "no_sentinel_rows": true
       }
     }
   ]
