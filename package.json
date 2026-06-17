@@ -3,7 +3,7 @@
   "version": "0.2.1",
   "type": "module",
   "private": true,
-  "description": "Codex plugin for agent-native CLIs and safe web/app fallback routing.",
+  "description": "Codex 插件：为 agent-native CLI 和安全网页/应用兜底提供薄路由层。",
   "license": "MIT",
   "bin": {
     "agent-access": "./plugins/agent-access/skills/agent-access/scripts/agent-access.mjs"

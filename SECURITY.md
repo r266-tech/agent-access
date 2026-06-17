@@ -1,24 +1,36 @@
-# Security Policy
+# 安全政策
 
-## Supported Versions
+## 支持版本
 
-Security fixes apply to the latest public release.
+安全修复只面向最新公开 release。旧版本可能继续可用，但维护者不会承诺回补安全修复。
 
-## Reporting A Vulnerability
+## 报告漏洞
 
-Do not open public issues containing secrets, cookies, tokens, private URLs, screenshots with account data, or exploit details. Use GitHub private vulnerability reporting when available, or contact the maintainers through a private channel before sharing sensitive details.
+如果你发现安全问题，请不要在公开 issue、PR、讨论区或截图中放入 secret、cookie、token、验证码、账号标识、私有 URL、本地路径、浏览器 profile、HAR 文件或可复现利用细节。
 
-## Data Handling
+请先提交一个不含敏感材料的最小描述，说明：
 
-Agent Access must not collect passive telemetry by default. Contribution drafts are local until the user reviews, scrubs, and explicitly approves sharing.
+- 受影响的组件或 CLI；
+- 可观察到的风险；
+- 你已经做过的脱敏处理；
+- 是否需要维护者通过私有渠道继续沟通。
 
-Never include:
+## 数据处理
 
-- cookies, tokens, API keys, passwords, verification codes, or QR payloads;
-- phone numbers, emails, usernames, account labels, or user ids unless explicitly approved;
-- raw HAR files, browser logs, screenshots, local database rows, or private page bodies;
-- local absolute paths outside a minimal reproducible example.
+Agent Access 默认不收集被动遥测，不自动上传用户经验，也不自动提交贡献草稿。登录态、cookie、token、验证码、账号密码、浏览器 session、API key、本地数据库、缓存和私有 overlay 都只应该保存在用户本机。
 
-## Browser Automation
+公开贡献、测试样例和 reference 不得包含：
 
-The public core does not start a browser control server by default. Browser adapters must require explicit startup, local-only access, authorization, capability scoping, and clear site Terms-of-Service risk disclosure.
+- cookie、token、API key、验证码、账号密码；
+- 手机号、邮箱、账号 ID、群 ID 或其他可识别用户身份的信息；
+- 浏览器 profile、HAR、原始运行日志或未经审核的截图；
+- 私有 URL、公司内部域名、本地绝对路径；
+- 可用于绕过站点安全策略的细节。
+
+## 浏览器自动化
+
+浏览器、CDP、Computer Use 和 GUI 自动化都是可选兜底能力，公开核心不默认启动浏览器控制服务。任何浏览器 adapter 都必须显式启动、只绑定本机、做本地授权、限制能力范围，并清楚说明站点条款和账号风险。
+
+## 贡献审查
+
+蜂群贡献必须先本地脱敏，再由维护者人工审核。维护者可以拒绝任何来源不清、脱敏不足、会扩大账号风险、或把私有使用材料混入公开仓库的贡献。

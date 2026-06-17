@@ -1,9 +1,9 @@
 {
   "name": "agent-access",
-  "description": "Thin living access layer for agents: route websites, apps, APIs, and workflows to CLIs, structured retrieval, browser fallback, or contribution drafts",
+  "description": "面向 agent 的薄访问层：把网站、应用、API 和工作流路由到 CLI、结构化检索、浏览器兜底或贡献草稿",
   "version": "0.2.1",
   "author": {
-    "name": "Agent Access contributors"
+    "name": "Agent Access 贡献者"
   },
   "homepage": "https://github.com/r266-tech/agent-access",
   "repository": "https://github.com/r266-tech/agent-access",
@@ -19,9 +19,9 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Agent Access",
-    "shortDescription": "Route sites and apps to agent-native CLIs",
-    "longDescription": "Agent Access helps Codex choose agent-native CLIs, structured APIs, browser fallback, or Computer Use for websites, local apps, and recurring online workflows. It keeps the default skill thin and turns repeatable discoveries into reusable command surfaces.",
-    "developerName": "Agent Access contributors",
+    "shortDescription": "把网站和应用路由到 agent-native CLI",
+    "longDescription": "Agent Access 帮助 Codex 在处理网站、本地软件和重复联网流程时，优先选择 agent-native CLI、结构化 API、浏览器兜底或 Computer Use。默认 skill 保持很薄，把可复用发现沉淀成可审查、可升级的命令行能力。",
+    "developerName": "Agent Access 贡献者",
     "category": "Developer Tools",
     "capabilities": [
       "Interactive",
@@ -32,9 +32,9 @@
     "privacyPolicyURL": "https://github.com/r266-tech/agent-access/blob/main/SECURITY.md",
     "termsOfServiceURL": "https://github.com/r266-tech/agent-access/blob/main/LICENSE",
     "defaultPrompt": [
-      "Use Agent Access to see whether a local CLI already covers this website.",
-      "Use Agent Access to design an agent-friendly CLI for this recurring web workflow.",
-      "Use Agent Access to inspect auth/session recovery options for this tool."
+      "用 Agent Access 检查这个网站或软件是否已有本地 CLI。",
+      "用 Agent Access 为这个重复网页流程设计 agent 友好的 CLI。",
+      "用 Agent Access 检查这个工具的登录态、刷新和恢复方案。"
     ],
     "brandColor": "#10A37F",
     "screenshots": []
