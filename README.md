@@ -1,58 +1,59 @@
 # Agent Access
 
-**A universal access layer for AI agents. Route websites, apps, APIs, and repeat workflows to agent-native CLIs first, then use browser or GUI fallback only when a CLI/API cannot cover the job.**
+**给中文开发者和中文用户使用的通用 Agent 访问层。把网站、App、API、本地软件和重复联网流程，优先沉淀成 agent-native CLI；只有 CLI/API 覆盖不了时，才进入浏览器、CDP 或 GUI 兜底。**
 
-Agent Access is for Claude Code, Codex, Cursor, OpenClaw, Hermes, OpenAI agents, local agent runtimes, and any coding or research agent that needs reliable access to the outside world.
+Agent Access 面向 Claude Code、Codex、Cursor、OpenClaw、Hermes、OpenAI Agents、本地智能体框架，以及任何需要稳定访问外部世界的 AI 编程/研究 agent。
 
-It also ships a Codex plugin package, but the project is not "a Codex plugin." The plugin is just one adapter for the same portable registry, references, and CLI contract.
+这个仓库同时提供 Codex 插件包，但项目本体不是“Codex 插件”。Codex 插件只是一个分发 adapter；真正的核心是可复用的 CLI registry、薄 skill、references 和贡献规范。
 
-If this helps your agent stop clicking through the same website over and over, please star the repo. Stars make the registry easier for other agents and maintainers to find.
+如果这个项目帮你的 agent 少点网页、少猜接口、少丢上下文，欢迎 star。star 越多，中文 agent 工具生态越容易被更多开发者和维护者看到。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Node >=20](https://img.shields.io/badge/node-%3E%3D20-339933.svg)](package.json)
 
-## Why This Exists
+## 为什么需要它
 
-Agents still waste too much context and time on brittle browser automation:
+现在很多 agent 做联网和软件操作时，还在反复消耗上下文：
 
-- click a dynamic website;
-- rediscover the same hidden endpoint;
-- parse unstable page text;
-- lose login/session state;
-- produce output that another agent cannot safely continue.
+- 每次都重新点动态网页；
+- 每次都重新发现隐藏接口；
+- 从不稳定页面文本里硬解析；
+- 登录态、cookie、浏览器 session 到处散落；
+- 一个 agent 找到的路径，另一个 agent 很难接着用。
 
-Agent Access turns repeat access into reusable capability:
+Agent Access 的打法是把重复访问变成可复用能力：
 
-1. Discover the best access surface for the target.
-2. Prefer a companion CLI or structured API.
-3. Use browser/CDP/Computer Use only for gaps.
-4. Promote stable discoveries into CLI contracts, registry entries, or focused references.
-5. Keep credentials, cookies, browser profiles, and private paths local.
+1. 先发现目标网站/软件/API 是否已有合适能力。
+2. 优先走 companion CLI 或结构化 API。
+3. 浏览器、CDP、Computer Use 只做开荒和兜底。
+4. 稳定发现沉淀为 CLI 契约、registry 条目或 focused reference。
+5. 凭据、cookie、浏览器 profile、账号标识和私有路径只留在用户本机。
 
-## What You Get
+## 适合谁
 
-- `agent-access` CLI for registry lookup, install/update plans, doctor checks, auth routing, public audits, and contribution drafts.
-- A portable `registry.json` for companion CLIs such as WeChat, Polymarket, Xiaoyuzhou, Douban, Dianping, and Xiaohongshu/Rednote.
-- A thin skill package that tells agents how to choose tools without stuffing every rule into the prompt.
-- References for CLI generation, auth/session boundaries, browser fallback, and contribution review.
-- A Codex plugin package under `plugins/agent-access`.
+| 用户 / agent runtime | 使用方式 |
+| --- | --- |
+| 中文开发者 | 用 registry 和 CLI 契约给网站、App、本地软件沉淀 agent-native 工具。 |
+| Claude Code | 直接使用 CLI、registry、SKILL 和 references。 |
+| OpenAI Codex | 安装内置 Codex 插件，或直接调用 `agent-access` CLI。 |
+| Cursor | 把 Agent Access 作为 rules / agent instructions 里的访问层约定。 |
+| OpenClaw | 复用 registry、CLI contract 和 references。 |
+| Hermes / Babata 风格本地 agent | 用同一层薄路由，叠加本地私有 overlay。 |
+| 自定义 agent | 调 `agent-access list/info/doctor`，按 CLI contract 适配。 |
 
-## Works With
+给 agent runtime 读取的短入口见 [AGENTS.md](AGENTS.md)。
 
-| Agent / runtime | Status | How to use it |
-| --- | --- | --- |
-| Claude Code | Portable | Use the CLI, registry, and skill text/reference files from this repo. |
-| OpenAI Codex | Packaged | Install the bundled Codex plugin or use the CLI directly. |
-| Cursor | Portable | Point rules/agent instructions at the registry and CLI contract. |
-| OpenClaw | Portable | Use Agent Access as the access registry and CLI convention layer. |
-| Hermes / Babata-style agents | Portable | Use the same thin routing layer with local private overlays. |
-| Custom agents | Portable | Call `agent-access list/info/doctor` and adopt the CLI contract. |
+## 你会得到什么
 
-For agent-runtime integration details, see [AGENTS.md](AGENTS.md).
+- `agent-access` CLI：查询 registry、查看安装/升级计划、doctor 检查、auth 路由、公开审计、贡献草稿。
+- 可移植的 `registry.json`：登记 WeChat、Polymarket、小宇宙、豆瓣、大众点评、小红书等 companion CLI。
+- 薄 skill：提醒 agent 怎么选工具，但不把所有规则塞进常驻 prompt。
+- references：CLI 生成、auth/session 边界、浏览器兜底、贡献审核等操作说明。
+- Codex 插件包：位于 `plugins/agent-access`，方便 Codex 用户安装。
 
-## Quick Start
+## 快速开始
 
-Use directly from GitHub:
+直接从 GitHub 使用：
 
 ```bash
 npx github:r266-tech/agent-access --help
@@ -61,7 +62,7 @@ npx github:r266-tech/agent-access info wechat-cli
 npx github:r266-tech/agent-access doctor wechat-cli
 ```
 
-Use from a checkout:
+从本地 checkout 使用：
 
 ```bash
 git clone https://github.com/r266-tech/agent-access.git
@@ -70,111 +71,113 @@ npm link
 
 agent-access list
 agent-access info wechat-cli
-agent-access install wechat-cli      # dry-run plan
-agent-access doctor wechat-cli --run # executes the target doctor command
+agent-access install wechat-cli      # 默认只输出 dry-run 计划
+agent-access doctor wechat-cli --run # 执行目标 CLI 的 doctor 命令
 ```
 
-`install` and `update` are dry-run by default. Add `--run` only when you intend to change the local machine.
+`install` 和 `update` 默认都是 dry-run。只有确定要修改本机环境时才加 `--run`。
 
-## Codex Plugin
+## Codex 插件安装
 
-Install from GitHub:
+从 GitHub 安装：
 
 ```bash
 codex plugin marketplace add r266-tech/agent-access --ref main
 codex plugin add agent-access --marketplace agent-access
 ```
 
-Install from a local checkout:
+从本地 checkout 安装：
 
 ```bash
 codex plugin marketplace add .
 codex plugin add agent-access --marketplace agent-access
 ```
 
-Upgrade the plugin package:
+升级 Codex 插件：
 
 ```bash
 codex plugin marketplace upgrade agent-access
 codex plugin add agent-access --marketplace agent-access
 ```
 
-Companion CLIs update through their own registry-declared commands:
+Companion CLI 通过 registry 里的命令升级：
 
 ```bash
 agent-access update wechat-cli
 agent-access update wechat-cli --run
 ```
 
-## Initial Registry
+## 首批 Registry
 
-| Target | Command | Status | Boundary |
+| 目标 | 命令 | 状态 | 边界 |
 | --- | --- | --- | --- |
-| WeChat / Weixin / 微信 local data | `wechat-cli`, `wx-cli` | Public release | Read local WeChat data. No sending, no UI control. |
-| Polymarket | `pmkt` | Public contract, standalone source pending | Read market, event, price, outcome, order-book, trade, and holder data. No wallet credentials. |
-| Xiaoyuzhou FM / 小宇宙 | `xyz` | Public source | Read subscriptions, episodes, transcripts, search, and history. |
-| Douban movie / 豆瓣电影 | `douban` | Public contract, standalone source pending | Browser-session reads. Mark/rate defaults to dry-run; explicit apply required. |
-| Dianping / 大众点评 | `dp`, `dianping` | Public contract, standalone source pending | Read shops and reviews via browser/session or stdin cookie import. No cookie export. |
-| Xiaohongshu / Rednote / 小红书 | `xhs` | Public contract, standalone source pending | User session stays local. Writes require explicit command and confirmation. |
+| 微信 / WeChat / Weixin 本地数据 | `wechat-cli`, `wx-cli` | 公开 release | 只读本地微信数据；不发消息，不控制 UI。 |
+| Polymarket | `pmkt` | 公开契约，独立源码待发布 | 只读市场、事件、价格、结果、订单簿、交易和 holder 数据；不碰钱包凭据。 |
+| 小宇宙 FM / Xiaoyuzhou | `xyz` | 公开源码 | 只读订阅、节目、转录、搜索和历史。 |
+| 豆瓣电影 / Douban movie | `douban` | 公开契约，独立源码待发布 | 浏览器 session 读取；标记/评分默认 dry-run，显式 apply 才写。 |
+| 大众点评 / Dianping | `dp`, `dianping` | 公开契约，独立源码待发布 | 读取店铺和评价；支持浏览器/session 或 stdin cookie 导入；不导出 cookie。 |
+| 小红书 / Rednote / Xiaohongshu | `xhs` | 公开契约，独立源码待发布 | 用户 session 留本机；写操作必须显式命令和用户确认。 |
 
-`plugins/agent-access/skills/agent-access/registry.json` is the source of truth. `source_status` tells agents whether a route is installable today or only a public contract.
+`plugins/agent-access/skills/agent-access/registry.json` 是权威 registry。`source_status` 用来告诉 agent：这个 route 是现在可安装，还是只有公开契约、源码待发布。
 
-## Agent-Native CLI Contract
+## Agent-Native CLI 契约
 
-A companion CLI should provide:
+一个适合 agent 使用的 companion CLI 应该提供：
 
-- stable JSON stdout by default;
-- deterministic exit codes;
-- useful `--help` and ideally `doctor`;
-- IDs, URLs, cursors, cache refs, or other follow-up handles;
-- scriptable pagination, filters, sorting, and fields;
-- clear read/write boundaries;
-- explicit write flags or dry-run defaults;
-- local auth/session storage;
-- actionable `error.next_action` on failure.
+- 默认稳定 JSON stdout；
+- 确定性退出码；
+- 可用的 `--help`，最好还有 `doctor`；
+- 可继续读取的 ID、URL、cursor、cache ref 等句柄；
+- 可脚本化的分页、过滤、排序和 fields；
+- 清晰的读写边界；
+- 写操作显式 flag 或 dry-run 默认；
+- 本地化 auth/session 存储；
+- 失败时给出可操作的 `error.next_action`。
 
-This is the core idea: websites and apps become durable tools that agents can compose.
+核心目标很简单：让网站、App 和本地软件变成 agent 能组合、能复用、能审计的工具。
 
-## Architecture
+## 架构
 
-Agent Access has four layers:
+Agent Access 分四层：
 
-1. Universal thin layer: registry, references, contribution flow, audit checks, and CLI helper.
-2. Adapters: Codex plugin today; other agent packages can point at the same files and CLI.
-3. Companion CLIs: target-specific tools for websites, apps, APIs, local databases, and workflows.
-4. User-local state: credentials, cookies, browser sessions, API keys, caches, and private overlays.
+1. 通用薄层：registry、references、贡献流程、审计检查和 CLI helper。
+2. Adapter：当前提供 Codex 插件；其他 agent package 可以指向同一套文件和 CLI。
+3. Companion CLIs：面向具体网站、App、API、本地数据库和工作流的工具。
+4. 用户本地状态：凭据、cookie、浏览器 session、API key、缓存和私有 overlay。
 
-Public registry entries may describe login methods, install commands, and update commands. They must never contain user credentials, cookies, tokens, account identifiers, browser dumps, HAR files, raw logs, or private local paths.
+公开 registry 可以描述登录方式、安装命令和升级命令，但不能包含用户凭据、cookie、token、账号标识、浏览器 dump、HAR、原始日志或私有本地路径。
 
-## Privacy And Safety
+## 隐私和安全
 
-Agent Access does not collect passive telemetry and does not auto-upload usage experience.
+Agent Access 不做被动遥测，不自动上传用户经验。
 
-Contribution drafts are local by default. Before anything becomes public, it must be explicitly reviewed, scrubbed, and submitted by the user or maintainer.
+贡献草稿默认只在本地。任何内容公开前，都必须由用户或维护者显式审核、脱敏、提交。
 
-Run the public audit before publishing:
+发布前请跑公开审计：
 
 ```bash
 npm test
 node plugins/agent-access/skills/agent-access/scripts/agent-access.mjs audit-public .
 ```
 
-## Repository Search Keywords
+## 检索关键词
 
-AI agent access layer, agent-native CLI, AI browser automation alternative, agent tool router, CLI registry for agents, Claude Code tools, Codex plugin, Cursor agent tools, OpenClaw tools, Hermes agent tools, Computer Use fallback, CDP fallback, local-first agent tools, WeChat CLI, Polymarket CLI, Xiaoyuzhou CLI, Douban CLI, Dianping CLI, Xiaohongshu CLI, Rednote CLI.
+中文：AI agent 访问层，智能体工具路由，agent-native CLI，Agent CLI 注册表，AI 浏览器自动化替代方案，Claude Code 工具，Codex 插件，Cursor agent 工具，OpenClaw 工具，Hermes agent 工具，本地优先 agent 工具，微信 CLI，小红书 CLI，豆瓣 CLI，大众点评 CLI，小宇宙 CLI。
 
-## Contributing
+English: AI agent access layer, agent-native CLI, AI browser automation alternative, agent tool router, CLI registry for agents, Claude Code tools, Codex plugin, Cursor agent tools, OpenClaw tools, Hermes agent tools, Computer Use fallback, CDP fallback, local-first agent tools, WeChat CLI, Polymarket CLI, Xiaoyuzhou CLI, Douban CLI, Dianping CLI, Xiaohongshu CLI, Rednote CLI.
 
-Useful contributions:
+## 贡献
 
-- new companion CLI contracts;
-- registry entries for agent-friendly tools;
-- references for stable site/app patterns;
-- privacy-preserving auth/session adapters;
-- tests and audit probes;
-- docs that help agents choose the right capability.
+欢迎这些贡献：
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md).
+- 新的 companion CLI 契约；
+- agent 友好的 registry 条目；
+- 稳定站点/App pattern 的 focused reference；
+- 隐私友好的 auth/session adapter；
+- 测试和公开审计 probe；
+- 帮助中文开发者和 agent 选择正确能力面的文档。
+
+见 [CONTRIBUTING.md](CONTRIBUTING.md) 和 [SECURITY.md](SECURITY.md)。
 
 ## License
 

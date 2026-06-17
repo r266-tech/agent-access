@@ -1,6 +1,6 @@
 {
   "name": "agent-access",
-  "description": "Universal access layer for AI agents: route websites, apps, APIs, and workflows to agent-native CLIs, structured retrieval, browser/GUI fallback, or reviewed contribution drafts.",
+  "description": "面向中文开发者和中文用户的通用 AI agent 访问层：把网站、App、API 和重复流程路由到 agent-native CLI、结构化检索、浏览器/GUI 兜底或贡献草稿。",
   "version": "0.2.2",
   "author": {
     "name": "Agent Access 贡献者"
@@ -9,6 +9,11 @@
   "repository": "https://github.com/r266-tech/agent-access",
   "license": "MIT",
   "keywords": [
+    "中文开发者",
+    "中文agent",
+    "智能体工具",
+    "智能体访问层",
+    "ai智能体",
     "ai-agent",
     "agent-access",
     "agent-native-cli",
@@ -32,8 +37,8 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Agent Access",
-    "shortDescription": "Universal access layer for agent-native CLIs",
-    "longDescription": "Agent Access is a universal thin access layer for AI agents. This Codex package is one adapter: it helps Codex prefer agent-native CLIs and structured APIs for websites, local apps, and repeat workflows, then use browser/CDP or Computer Use only for gaps. Reusable discoveries become reviewed CLI contracts, registry entries, or focused references.",
+    "shortDescription": "中文优先的通用 agent 访问层",
+    "longDescription": "Agent Access 是面向中文开发者和中文用户的通用 AI agent 薄访问层。这个 Codex 包只是一个 adapter：它帮助 Codex 在处理网站、本地 App、API 和重复联网流程时，优先选择 agent-native CLI 和结构化 API；只有 CLI/API 覆盖不了时，才进入浏览器、CDP 或 Computer Use 兜底。稳定发现会沉淀为可审核的 CLI 契约、registry 条目或 focused reference。",
     "developerName": "Agent Access 贡献者",
     "category": "Developer Tools",
     "capabilities": [
@@ -45,9 +50,9 @@
     "privacyPolicyURL": "https://github.com/r266-tech/agent-access/blob/main/SECURITY.md",
     "termsOfServiceURL": "https://github.com/r266-tech/agent-access/blob/main/LICENSE",
     "defaultPrompt": [
-      "Use Agent Access to check whether this website, app, or API already has an agent-native CLI.",
-      "Use Agent Access to design a reusable CLI contract for this repeated web/app workflow.",
-      "Use Agent Access to inspect the auth, session refresh, and recovery plan for this companion tool."
+      "用 Agent Access 检查这个网站、App 或 API 是否已有 agent-native CLI。",
+      "用 Agent Access 为这个重复网页/App 流程设计可复用 CLI 契约。",
+      "用 Agent Access 检查这个 companion tool 的登录态、刷新和恢复方案。"
     ],
     "brandColor": "#10A37F",
     "screenshots": []

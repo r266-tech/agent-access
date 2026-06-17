@@ -1,4 +1,4 @@
 interface:
   display_name: "Agent Access"
-  short_description: "Universal access layer for agent-native CLIs, browser fallback, and contribution"
-  default_prompt: "Use Agent Access as a thin universal access layer: prefer existing agent-native CLIs and structured retrieval, then use browser/CDP or Computer Use only for CLI/API gaps."
+  short_description: "中文优先的通用 agent 访问层：agent-native CLI、浏览器兜底和贡献流"
+  default_prompt: "将 Agent Access 作为中文优先的通用薄访问层：优先使用已有 agent-native CLI 和结构化检索；只有 CLI/API 覆盖不了时，才进入浏览器/CDP 或 Computer Use。"

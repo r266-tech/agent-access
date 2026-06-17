@@ -2,7 +2,7 @@
   "name": "agent-access",
   "version": "0.2.2",
   "type": "module",
-  "description": "Universal access layer for AI agents: route websites, apps, APIs, and workflows to agent-native CLIs with browser/GUI fallback.",
+  "description": "面向中文开发者和中文用户的通用 AI agent 访问层：把网站、App、API 和重复流程路由到 agent-native CLI。",
   "license": "MIT",
   "homepage": "https://github.com/r266-tech/agent-access#readme",
   "repository": {
@@ -13,6 +13,11 @@
     "url": "https://github.com/r266-tech/agent-access/issues"
   },
   "keywords": [
+    "中文开发者",
+    "中文agent",
+    "智能体工具",
+    "智能体访问层",
+    "ai智能体",
     "ai-agent",
     "agent-access",
     "agent-native-cli",
