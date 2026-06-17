@@ -143,8 +143,18 @@ function executableCandidates(entry) {
 
 function which(command) {
   if (!command) return null;
+  const text = String(command);
   const dirs = String(process.env.PATH || '').split(path.delimiter).filter(Boolean);
-  const candidates = command.includes(path.sep) ? [command] : dirs.map((dir) => path.join(dir, command));
+  const hasPathSeparator = text.includes(path.sep) || (path.sep === '\\' && text.includes('/'));
+  const bases = hasPathSeparator ? [text] : dirs.map((dir) => path.join(dir, text));
+  const extensions = process.platform === 'win32' && !path.extname(text)
+    ? String(process.env.PATHEXT || '.COM;.EXE;.BAT;.CMD')
+      .split(';')
+      .filter(Boolean)
+    : [];
+  const candidates = extensions.length
+    ? bases.flatMap((candidate) => [candidate, ...extensions.map((ext) => `${candidate}${ext.toLowerCase()}`), ...extensions.map((ext) => `${candidate}${ext.toUpperCase()}`)])
+    : bases;
   for (const candidate of candidates) {
     try {
       fs.accessSync(candidate, fs.constants.X_OK);
@@ -245,7 +255,7 @@ function redactAuthObject(value) {
         return [key, (typeof item === 'boolean' || typeof item === 'number' || item == null) ? item : '[REDACTED]'];
       }
       if (/path|file|dir|folder|database|db|profile/i.test(key)) {
-        return [key, (typeof item === 'boolean' || typeof item === 'number' || item == null) ? item : redactedPath(String(item))];
+        return [key, (typeof item === 'boolean' || typeof item === 'number' || item == null) ? item : redactString(redactedPath(String(item)))];
       }
       if (/password|secret|cookie|token|session|authorization|verification|qrcode|qr|payload|otp|pin/i.test(key) || /^code$/i.test(key)) {
         return [key, (typeof item === 'boolean' || typeof item === 'number' || item == null) ? item : '[REDACTED]'];
