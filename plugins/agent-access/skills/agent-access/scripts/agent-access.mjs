@@ -244,6 +244,9 @@ function redactAuthObject(value) {
       if (/^(id|uid|user_id|username|red_id|nickname|name|account|account_id|email|phone|mobile|avatar|image|url)$/i.test(key)) {
         return [key, (typeof item === 'boolean' || typeof item === 'number' || item == null) ? item : '[REDACTED]'];
       }
+      if (/path|file|dir|folder|database|db|profile/i.test(key)) {
+        return [key, (typeof item === 'boolean' || typeof item === 'number' || item == null) ? item : redactedPath(String(item))];
+      }
       if (/password|secret|cookie|token|session|authorization|verification|qrcode|qr|payload|otp|pin/i.test(key) || /^code$/i.test(key)) {
         return [key, (typeof item === 'boolean' || typeof item === 'number' || item == null) ? item : '[REDACTED]'];
       }
@@ -1069,7 +1072,7 @@ async function authLogin(registry, name) {
       target: entry.name,
       method,
       supported_methods: supported,
-      reference: path.join(ROOT, 'references', 'auth-sessions.md'),
+      reference: relPath(path.join(ROOT, 'references', 'auth-sessions.md')),
     },
   );
 }
@@ -1090,7 +1093,7 @@ function authRefresh(registry, name) {
     'refresh_adapter_missing',
     `No refresh adapter is registered for ${entry.name}.`,
     `${entry.command || entry.name} auth refresh || add an Agent Access auth adapter`,
-    { state: current },
+    { state: redactAuthObject(current) },
   );
 }
 
@@ -1130,8 +1133,8 @@ function authDoctor(registry, name) {
     supported_methods: entry.auth?.methods || [],
     broker: entry.auth?.broker || 'unknown',
     delegated_commands: entry.auth?.commands || {},
-    state_path: AUTH_STATE_PATH,
-    state: targetState(readAuthState(), entry.name),
+    state_path: redactedPath(AUTH_STATE_PATH),
+    state: redactAuthObject(targetState(readAuthState(), entry.name)),
     next_actions: nextActions,
   });
 }
@@ -1172,7 +1175,7 @@ function contributionsList() {
     const draft = readJson(filePath, {});
     return {
       id: draftId(filePath),
-      path: filePath,
+      path: redactedPath(filePath),
       type: draft.type || null,
       target: draft.target || null,
       created_at: draft.created_at || null,
@@ -1181,7 +1184,7 @@ function contributionsList() {
       privacy_review: draft.privacy_review || null,
     };
   });
-  write({ ok: true, command: 'contributions list', contributions_dir: CONTRIBUTIONS_DIR, drafts });
+  write({ ok: true, command: 'contributions list', contributions_dir: redactedPath(CONTRIBUTIONS_DIR), drafts });
 }
 
 function contributionsNew() {
@@ -1232,6 +1235,8 @@ function redactString(value) {
     .replace(/(?<!\d)1[3-9]\d{9}(?!\d)/g, '[REDACTED_PHONE]')
     .replace(/\b(phone|mobile|tel|telephone)\b\s*[:=]?\s*\+?\d[\d -]{7,}\d/gi, '$1 [REDACTED_PHONE]')
     .replace(/([?&](?:token|session|auth|code|key|user_id|account_id)=)[^&\s"']+/gi, '$1[REDACTED]')
+    .replace(/\/Users\/[A-Za-z0-9._-]+\/(?:cc-workspace|brain|\.codex|\.claude)(?=\/|[\s"'`]|$)/g, '~/$PRIVATE_PATH')
+    .replace(/\/Users\/\[REDACTED_USER\]\/(?:cc-workspace|brain|\.codex|\.claude)(?=\/|[\s"'`]|$)/g, '~/$PRIVATE_PATH')
     .replace(/\/Users\/[A-Za-z0-9._-]+/g, '/Users/[REDACTED_USER]')
     .replace(/(?:^|[\s"'`])~\/(?:\.codex|\.claude|cc-workspace|brain)(?=\/|[\s"'`]|$)/g, (match) => match[0] === '~' ? '~/$PRIVATE_PATH' : `${match[0]}~/$PRIVATE_PATH`);
 }
