@@ -54,7 +54,7 @@ const registry = {
       name: 'stub',
       kind: 'test',
       targets: ['stub.local'],
-      command: 'node',
+      command: process.execPath,
       description: 'privacy probe',
       doctor: [],
       auth: { methods: [], broker: 'none' },
@@ -66,21 +66,27 @@ const registry = {
   ],
 };
 registry.entries[0].doctor = [
-  'node',
+  process.execPath,
   '-e',
   `console.log(JSON.stringify({token:${JSON.stringify(privateToken)},user_id:${JSON.stringify(privateUserId)},path:${JSON.stringify(privatePath)}}))`,
 ];
 
-const doctor = run(process.execPath, [cli, 'doctor', 'stub', '--run'], {
-  input: JSON.stringify(registry),
-  env: {
-    ...process.env,
-    AGENT_ACCESS_REGISTRY: '/dev/stdin',
-    AGENT_ACCESS_STATE_DIR: path.join(os.tmpdir(), 'agent-access-audit-nonexistent'),
-  },
-});
-assert(doctor.status === 0, 'delegated doctor probe failed', { stdout: doctor.stdout, stderr: doctor.stderr });
-assertNoLeak(doctor.stdout + doctor.stderr, 'delegated doctor output');
+const registryDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-access-registry-'));
+try {
+  const registryPath = path.join(registryDir, 'registry.json');
+  fs.writeFileSync(registryPath, JSON.stringify(registry, null, 2));
+  const doctor = run(process.execPath, [cli, 'doctor', 'stub', '--run'], {
+    env: {
+      ...process.env,
+      AGENT_ACCESS_REGISTRY: registryPath,
+      AGENT_ACCESS_STATE_DIR: path.join(os.tmpdir(), 'agent-access-audit-nonexistent'),
+    },
+  });
+  assert(doctor.status === 0, 'delegated doctor probe failed', { stdout: doctor.stdout, stderr: doctor.stderr });
+  assertNoLeak(doctor.stdout + doctor.stderr, 'delegated doctor output');
+} finally {
+  fs.rmSync(registryDir, { recursive: true, force: true });
+}
 
 const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-access-privacy-'));
 try {
