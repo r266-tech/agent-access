@@ -3,15 +3,15 @@ name: agent-access
 license: MIT
 github: https://github.com/r266-tech/agent-access
 description:
-  Agent Access 是给 agent 的薄访问层：把网站、GUI 软件、本地 app、API 和重复联网流程路由到 agent-native CLI、结构化检索、浏览器兜底、Computer Use 或显式贡献草稿。
+  Agent Access 是通用 agent 薄访问层：给 Claude Code、Codex、Cursor、OpenClaw、Hermes 等 agent 把网站、GUI 软件、本地 app、API 和重复联网流程路由到 agent-native CLI、结构化检索、浏览器/CDP 兜底、Computer Use 或显式贡献草稿。
 metadata:
   author: Agent Access 贡献者
-  version: "0.2.1"
+  version: "0.2.2"
 ---
 
 # Agent Access Skill
 
-Agent Access 是薄路由层，不替代模型判断。它负责提醒 agent 先发现可用能力，再选择最合适的表面：现有 CLI、可生成或可优化的 CLI、结构化 API、浏览器兜底、Computer Use，以及必要 reference。
+Agent Access 是通用薄访问层，不替代模型判断。它面向 Claude Code、Codex、Cursor、OpenClaw、Hermes 和自定义本地 agent；Codex 插件只是一个分发 adapter。它负责提醒 agent 先发现可用能力，再选择最合适的表面：现有 CLI、可生成或可优化的 CLI、结构化 API、浏览器/CDP 兜底、Computer Use，以及必要 reference。
 
 ## L0 Contract
 
@@ -23,11 +23,19 @@ Agent Access 是薄路由层，不替代模型判断。它负责提醒 agent 先
 6. 用完 CLI 后回看摩擦：能安全当场改就改，并重新跑真实 flow；不能靠 CLI 合理覆盖的，写成 focused reference 或贡献草稿。
 7. 贡献外发必须显式。经验、站点 pattern 和 CLI patch 默认只留在本地，只有用户审核并同意后才提交。
 8. 登录态留在本机。凭据、cookie、token、验证码、浏览器 session、本地数据库和账号标识不得进入 prompt 外的普通日志、memory、公开仓库或贡献草稿。
-9. 升级要可控：Agent Access 插件通过 Codex marketplace 升级；companion CLI 通过 registry 声明的 update 命令升级。
+9. 升级要可控：Agent Access 核心可通过 git/npm/插件包更新；Codex 插件通过 Codex marketplace 升级；companion CLI 通过 registry 声明的 update 命令升级。
+
+## Runtime Fit
+
+- Claude Code：使用本 repo 的 CLI、registry、SKILL 和 references；不要把全部 reference 塞进常驻 prompt。
+- Codex：可安装 `plugins/agent-access` 作为 Codex plugin，也可直接调用 `agent-access` CLI。
+- Cursor / OpenClaw / Hermes / custom agents：把 Agent Access 当作 registry + CLI contract + thin instruction package；按需读取 reference。
+- 任何 runtime 都应优先执行 `agent-access list/info/doctor` 或本地等价命令，而不是凭记忆猜某个站点是否已有工具。
 
 ## Initial Routes
 
 ```bash
+command -v agent-access
 agent-access list
 agent-access info wechat-cli
 agent-access info pmkt
@@ -92,7 +100,7 @@ node scripts/agent-access.mjs list
 
 用户和 agent 可以发现更好的 selector、schema、CLI flag、site pattern 和恢复流程。Agent Access 应把这些变成本地显式草稿，先脱敏，再由维护者审核后合并。没有被动遥测，没有自动上传。
 
-## Browser Fallback
+## Browser / GUI Fallback
 
 只有判断 CLI/API 不覆盖当前任务后，才进入浏览器、CDP 或 GUI 兜底。浏览器控制必须由用户显式配置，不应由公开核心隐式启动。
 

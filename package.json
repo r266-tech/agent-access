@@ -1,10 +1,48 @@
 {
   "name": "agent-access",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "type": "module",
-  "private": true,
-  "description": "Codex 插件：为 agent-native CLI 和安全网页/应用兜底提供薄路由层。",
+  "description": "Universal access layer for AI agents: route websites, apps, APIs, and workflows to agent-native CLIs with browser/GUI fallback.",
   "license": "MIT",
+  "homepage": "https://github.com/r266-tech/agent-access#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/r266-tech/agent-access.git"
+  },
+  "bugs": {
+    "url": "https://github.com/r266-tech/agent-access/issues"
+  },
+  "keywords": [
+    "ai-agent",
+    "agent-access",
+    "agent-native-cli",
+    "cli-registry",
+    "tool-router",
+    "browser-automation",
+    "cdp",
+    "computer-use",
+    "codex-plugin",
+    "claude-code",
+    "cursor",
+    "openclaw",
+    "hermes",
+    "wechat-cli",
+    "polymarket",
+    "xiaohongshu",
+    "rednote",
+    "douban",
+    "dianping"
+  ],
+  "files": [
+    ".agents/",
+    "plugins/",
+    "scripts/",
+    "README.md",
+    "AGENTS.md",
+    "CONTRIBUTING.md",
+    "SECURITY.md",
+    "LICENSE"
+  ],
   "bin": {
     "agent-access": "./plugins/agent-access/skills/agent-access/scripts/agent-access.mjs"
   },
