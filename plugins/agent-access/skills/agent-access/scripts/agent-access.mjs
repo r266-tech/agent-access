@@ -264,21 +264,28 @@ function sanitizeAuthDelegated(result) {
   for (const stream of ['stdout', 'stderr']) {
     const text = sanitized[stream];
     if (!text) continue;
-    try {
-      sanitized[stream] = `${JSON.stringify(redactAuthObject(JSON.parse(text)), null, 2)}\n`;
-    } catch {
-      sanitized[stream] = redactString(text);
-    }
+    sanitized[stream] = sanitizeOutputText(text);
   }
   return sanitized;
+}
+
+function sanitizeOutputText(text) {
+  try {
+    return `${JSON.stringify(redactAuthObject(JSON.parse(text)), null, 2)}\n`;
+  } catch {
+    return redactString(text);
+  }
 }
 
 function sanitizeCommandResult(result) {
   if (!result || !result.ran) return result;
   const sanitized = { ...result };
   sanitized.command = Array.isArray(sanitized.command) ? sanitized.command.map((arg) => redactString(arg)) : sanitized.command;
-  if (typeof sanitized.stdout === 'string') sanitized.stdout = redactString(sanitized.stdout);
-  if (typeof sanitized.stderr === 'string') sanitized.stderr = redactString(sanitized.stderr);
+  for (const stream of ['stdout', 'stderr']) {
+    const text = sanitized[stream];
+    if (typeof text !== 'string' || !text) continue;
+    sanitized[stream] = sanitizeOutputText(text);
+  }
   return sanitized;
 }
 
@@ -375,6 +382,8 @@ function publicEntry(entry) {
     command: entry.command,
     command_available: availability.some((item) => item.available),
     read_write: entry.read_write,
+    ...(entry.write_policy ? { write_policy: entry.write_policy } : {}),
+    source_status: entry.source_status || 'unknown',
     auth_methods: entry.auth?.methods || [],
     planned_auth_methods: entry.auth?.planned_methods || [],
     auth_broker: entry.auth?.broker || 'unknown',
@@ -701,15 +710,15 @@ function runDoctor(entry) {
     timeout: Number(opts.timeout || 10000),
     maxBuffer: 1024 * 1024,
   });
-  return {
+  return sanitizeCommandResult({
     ran: true,
     command: doctor,
     status: result.status,
     signal: result.signal,
-    stdout: redactString((result.stdout || '').slice(-8000)),
-    stderr: redactString((result.stderr || '').slice(-8000)),
+    stdout: (result.stdout || '').slice(-8000),
+    stderr: (result.stderr || '').slice(-8000),
     ok: result.status === 0,
-  };
+  });
 }
 
 function cmdDoctor(registry, name) {
@@ -1155,6 +1164,10 @@ function draftId(filePath) {
   return path.basename(filePath).replace(/\.json$/, '');
 }
 
+function redactedSummary(value) {
+  return value ? redactString(value) : null;
+}
+
 function findDraft(id) {
   const files = contributionFiles();
   return files.find((filePath) => draftId(filePath) === id)
@@ -1180,7 +1193,7 @@ function contributionsList() {
       target: draft.target || null,
       created_at: draft.created_at || null,
       updated_at: draft.updated_at || null,
-      summary: draft.summary || draft.proposed_patch_summary || null,
+      summary: redactedSummary(draft.summary || draft.proposed_patch_summary),
       privacy_review: draft.privacy_review || null,
     };
   });
@@ -1218,19 +1231,35 @@ function contributionsNew() {
     },
   };
   writeJson(filePath, draft);
-  write({ ok: true, command: 'contributions new', draft });
+  write({ ok: true, command: 'contributions new', draft: deepRedact(draft) });
 }
 
 function contributionsShow(id) {
   const filePath = findDraft(id);
   if (!filePath) fail('draft_not_found', `No contribution draft matched: ${id}`, 'agent-access contributions list');
-  write({ ok: true, command: 'contributions show', path: redactedPath(filePath), draft: readJson(filePath, {}) });
+  const draft = deepRedact(readJson(filePath, {}));
+  const residual = residualPrivacyFindings(draft);
+  write({
+    ok: residual.length === 0,
+    command: 'contributions show',
+    path: redactedPath(filePath),
+    redacted: true,
+    residual_findings: residual,
+    draft,
+    next_action: residual.length === 0
+      ? `agent-access contributions scrub ${draftId(filePath)}`
+      : 'Manual review required before sharing this draft.',
+  });
+  if (residual.length > 0) process.exit(1);
 }
 
 function redactString(value) {
   return String(value)
     .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, 'Bearer [REDACTED]')
+    .replace(/(["']?(?:authorization|cookie|set-cookie|x-api-key|api[-_]?key|token|session|password|passwd|secret|verification|otp|pin|user[_-]?id|account[_-]?id|username|account|code)["']?\s*:\s*)["'][^"']+["']/gi, '$1"[REDACTED]"')
+    .replace(/(["']?(?:authorization|cookie|set-cookie|x-api-key|api[-_]?key|token|session|password|passwd|secret|verification|otp|pin|user[_-]?id|account[_-]?id|username|account|code)["']?\s*:\s*)[A-Za-z0-9._~+/=-]{4,}/gi, '$1[REDACTED]')
     .replace(/(authorization|cookie|set-cookie|x-api-key|api[-_]?key|token|session|password|passwd|secret|verification|otp|pin|user[_-]?id|account[_-]?id|username|account|code)[=:]\s*[^&\s"']+/gi, '$1=[REDACTED]')
+    .replace(/\b(authorization|cookie|set-cookie|x-api-key|api[-_]?key|token|session|password|passwd|secret|verification|otp|pin|user[_-]?id|account[_-]?id|username|account|code)\b\s+["']?[A-Za-z0-9._~+/=-]{8,}["']?/gi, '$1 [REDACTED]')
     .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[REDACTED_EMAIL]')
     .replace(/(?<!\d)1[3-9]\d{9}(?!\d)/g, '[REDACTED_PHONE]')
     .replace(/\b(phone|mobile|tel|telephone)\b\s*[:=]?\s*\+?\d[\d -]{7,}\d/gi, '$1 [REDACTED_PHONE]')

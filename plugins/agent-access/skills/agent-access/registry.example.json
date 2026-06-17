@@ -364,10 +364,10 @@
           "write actions if ever added"
         ],
         "methods": [
-          "browser-session",
           "cookie-import"
         ],
         "planned_methods": [
+          "browser-session",
           "qr",
           "sms"
         ],
@@ -442,9 +442,7 @@
           "write actions"
         ],
         "methods": [
-          "browser-session",
-          "qr",
-          "sms"
+          "browser-session"
         ],
         "broker": "delegates-to-cli",
         "commands": {
@@ -457,7 +455,11 @@
             "login"
           ]
         },
-        "local_state_only": true
+        "local_state_only": true,
+        "planned_methods": [
+          "qr",
+          "sms"
+        ]
       },
       "read_write": "write-capable",
       "write_policy": "read defaults; mutating upstream commands require explicit target CLI command and user approval",
