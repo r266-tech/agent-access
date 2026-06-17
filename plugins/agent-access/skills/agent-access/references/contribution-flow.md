@@ -13,6 +13,7 @@ agent-access contributions submit <draft-id>
 ```
 
 `submit` must be fail-closed until a user reviews the final artifact and explicitly approves sharing.
+`scrub` is a helper, not a proof. If residual privacy patterns remain, it must report `needs_manual_review` and refuse to mark the draft clean.
 
 ## Redaction Rules
 

@@ -26,11 +26,10 @@ This public core intentionally does not include private site-patterns, user run 
 ## Quick Start
 
 ```bash
-cd plugins/agent-access/skills/agent-access
-node scripts/agent-access.mjs list
-node scripts/agent-access.mjs info example
-node scripts/agent-access.mjs doctor
-node scripts/agent-access.mjs audit-public ../../..
+node plugins/agent-access/skills/agent-access/scripts/agent-access.mjs list
+node plugins/agent-access/skills/agent-access/scripts/agent-access.mjs info example
+node plugins/agent-access/skills/agent-access/scripts/agent-access.mjs doctor
+node plugins/agent-access/skills/agent-access/scripts/agent-access.mjs audit-public .
 ```
 
 ## Install In Codex App
@@ -50,6 +49,7 @@ codex plugin add agent-access --marketplace agent-access
 ```
 
 Use `AGENT_ACCESS_REGISTRY` to point at your own registry file when wiring companion CLIs.
+The package also declares an `agent-access` bin for local development tools that install package bins.
 
 ## Companion CLI Contract
 

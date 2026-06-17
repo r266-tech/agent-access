@@ -6,7 +6,7 @@ Security fixes apply to the latest public release.
 
 ## Reporting A Vulnerability
 
-Do not open public issues containing secrets, cookies, tokens, private URLs, screenshots with account data, or exploit details. Use a private maintainer contact or a GitHub private vulnerability report when available.
+Do not open public issues containing secrets, cookies, tokens, private URLs, screenshots with account data, or exploit details. Use GitHub private vulnerability reporting when available, or contact the maintainers through a private channel before sharing sensitive details.
 
 ## Data Handling
 

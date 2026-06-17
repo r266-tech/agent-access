@@ -7,7 +7,7 @@ Before contributing:
 1. Run the public audit:
 
    ```bash
-   node scripts/agent-access.mjs audit-public .
+   node plugins/agent-access/skills/agent-access/scripts/agent-access.mjs audit-public .
    ```
 
 2. Remove secrets and private identifiers.

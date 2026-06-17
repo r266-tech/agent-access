@@ -27,10 +27,11 @@ Agent Access is a thin router. It should expose capability surfaces without repl
 ## Capability Discovery
 
 ```bash
-AGENT_ACCESS_DIR="${AGENT_ACCESS_DIR:-$PWD}"
-node "$AGENT_ACCESS_DIR/scripts/agent-access.mjs" list
-node "$AGENT_ACCESS_DIR/scripts/agent-access.mjs" info example
 command -v agent-access
+agent-access list
+agent-access info example
+# If the bin is not on PATH, run this from the loaded skill directory:
+node scripts/agent-access.mjs list
 ```
 
 Read `references/tool-routing.md` when the hot route is unclear. Read `references/cli-generation.md` before creating or substantially upgrading a CLI. Read `references/auth-sessions.md` for login/session work. Read `references/contribution-flow.md` before preparing anything for upstream.

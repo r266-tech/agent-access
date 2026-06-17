@@ -23,10 +23,10 @@ Planned methods are not executable recovery paths. Do not advertise them as acti
 A promoted route should be installable and verifiable:
 
 ```bash
-node scripts/agent-access.mjs list
-node scripts/agent-access.mjs info <name>
-node scripts/agent-access.mjs install <name>
-node scripts/agent-access.mjs doctor <name> --run
+agent-access list
+agent-access info <name>
+agent-access install <name>
+agent-access doctor <name> --run
 ```
 
 Manual installation is acceptable for experimental entries, but then the entry should not be promoted as a recommended hot route.

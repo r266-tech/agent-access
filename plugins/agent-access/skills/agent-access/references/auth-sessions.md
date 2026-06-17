@@ -36,6 +36,8 @@ Prefer:
 
 Do not store raw credentials, verification codes, auth headers, browser logs, screenshots, or private page bodies in docs, logs, public repos, or contribution drafts.
 
+The public Agent Access core does not write secrets directly. Password/API-key login should be implemented by a target-specific adapter or a user-approved secret store. If no adapter is registered, the command must fail closed rather than logging or storing the secret.
+
 ## CLI Auth Error Contract
 
 ```json

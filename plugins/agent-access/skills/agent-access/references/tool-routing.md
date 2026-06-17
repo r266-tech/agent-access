@@ -14,8 +14,8 @@ Read this when the thin skill is not enough to choose the right capability surfa
 ## Companion CLI Checks
 
 ```bash
-node scripts/agent-access.mjs list
-node scripts/agent-access.mjs info <name>
+agent-access list
+agent-access info <name>
 command -v <cli>
 <cli> --help
 ```

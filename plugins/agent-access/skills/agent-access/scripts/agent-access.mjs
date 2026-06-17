@@ -174,14 +174,41 @@ function runnableCommand(command) {
   return [executable, ...command.slice(1)];
 }
 
-function runCommand(command, extraArgs = []) {
+function relPath(filePath) {
+  const rel = path.relative(ROOT, filePath);
+  if (!rel || rel === '') return '.';
+  if (!rel.startsWith('..') && !path.isAbsolute(rel)) return rel;
+  return '[outside-skill-dir]';
+}
+
+function redactedPath(filePath) {
+  if (!filePath) return filePath;
+  const text = String(filePath);
+  if (text.startsWith(ROOT)) return relPath(text);
+  const cwd = process.cwd();
+  if (text === cwd) return '.';
+  if (text.startsWith(`${cwd}${path.sep}`)) {
+    const rel = path.relative(cwd, text);
+    return rel || '.';
+  }
+  if (text.startsWith(STATE_DIR)) return text.replace(STATE_DIR, '$AGENT_ACCESS_STATE_DIR');
+  if (text.startsWith(os.homedir())) return text.replace(os.homedir(), '~');
+  return text;
+}
+
+function commandWithDisplayArgs(command, extraArgs = [], displayArgs = extraArgs) {
+  return [command[0], ...command.slice(1), ...displayArgs];
+}
+
+function runCommand(command, extraArgs = [], options = {}) {
+  const displayCommand = options.displayCommand || commandWithDisplayArgs(command, extraArgs);
   const runnable = runnableCommand(command);
   if (!runnable) {
     return {
       ran: false,
       ok: false,
       reason: 'command_missing',
-      command,
+      command: displayCommand,
     };
   }
   const [executable, ...args] = runnable;
@@ -193,7 +220,7 @@ function runCommand(command, extraArgs = []) {
   });
   return {
     ran: true,
-    command: [command[0], ...command.slice(1), ...extraArgs],
+    command: displayCommand,
     status: result.status,
     signal: result.signal,
     stdout: result.stdout || '',
@@ -209,7 +236,7 @@ function redactAuthObject(value) {
       if (/^(id|uid|user_id|username|red_id|nickname|name|account|account_id|email|phone|mobile|avatar|image|url)$/i.test(key)) {
         return [key, (typeof item === 'boolean' || typeof item === 'number' || item == null) ? item : '[REDACTED]'];
       }
-      if (/password|secret|cookie|token|session|authorization|verification|qrcode|qr|payload/i.test(key)) {
+      if (/password|secret|cookie|token|session|authorization|verification|qrcode|qr|payload|otp|pin/i.test(key) || /^code$/i.test(key)) {
         return [key, (typeof item === 'boolean' || typeof item === 'number' || item == null) ? item : '[REDACTED]'];
       }
       return [key, redactAuthObject(item)];
@@ -222,6 +249,7 @@ function redactAuthObject(value) {
 function sanitizeAuthDelegated(result) {
   if (!result || !result.ran) return result;
   const sanitized = { ...result };
+  sanitized.command = Array.isArray(sanitized.command) ? sanitized.command.map((arg) => redactString(arg)) : sanitized.command;
   for (const stream of ['stdout', 'stderr']) {
     const text = sanitized[stream];
     if (!text) continue;
@@ -381,21 +409,15 @@ function keychainAvailable() {
 }
 
 function storeSecretInKeychain(target, profile, account, secret) {
-  if (!keychainAvailable()) {
-    return { ok: false, error: 'macos_security_command_unavailable' };
-  }
-  const service = serviceName(target, profile);
-  const result = spawnSync('security', [
-    'add-generic-password',
-    '-a', account || profile,
-    '-s', service,
-    '-w', secret,
-    '-U',
-  ], { encoding: 'utf8', timeout: 10000 });
-  if (result.status !== 0) {
-    return { ok: false, error: (result.stderr || result.stdout || '').trim() || 'keychain_write_failed' };
-  }
-  return { ok: true, ref: `keychain:${service}` };
+  void target;
+  void profile;
+  void account;
+  void secret;
+  return {
+    ok: false,
+    error: 'secret_store_adapter_missing',
+    next_action: 'Use a target-specific auth adapter or a user-approved secret store. Agent Access core does not write secrets directly.',
+  };
 }
 
 function deleteSecretFromKeychain(target, profile = profileName()) {
@@ -471,7 +493,7 @@ function cmdList(registry) {
     registry: {
       version: registry.version,
       updated_at: registry.updated_at,
-      path: REGISTRY_PATH,
+      path: redactedPath(REGISTRY_PATH),
     },
     entries,
   });
@@ -494,9 +516,9 @@ function cmdInfo(registry, name) {
     availability: commandAvailability(entry),
     auth_commands: entry.auth?.commands || {},
     references: {
-      auth: path.join(ROOT, 'references', 'auth-sessions.md'),
-      registry: path.join(ROOT, 'references', 'cli-registry.md'),
-      site_patterns: sitePatternRefs(entry),
+      auth: relPath(path.join(ROOT, 'references', 'auth-sessions.md')),
+      registry: relPath(path.join(ROOT, 'references', 'cli-registry.md')),
+      site_patterns: sitePatternRefs(entry).map(relPath),
     },
   });
 }
@@ -543,16 +565,19 @@ function runDoctor(entry) {
 }
 
 function cmdDoctor(registry, name) {
+  const cdpHelperPath = path.join(ROOT, 'scripts', 'check-deps.mjs');
   if (!name) {
     write({
       ok: true,
       command: 'doctor',
-      root: ROOT,
-      registry_path: REGISTRY_PATH,
-      state_dir: STATE_DIR,
+      root: '.',
+      registry_path: redactedPath(REGISTRY_PATH),
+      state_dir: redactedPath(STATE_DIR),
       node: process.version,
       entries: registry.entries.map(publicEntry),
-      cdp_next_action: `node ${path.join(ROOT, 'scripts', 'check-deps.mjs')}`,
+      cdp_next_action: fs.existsSync(cdpHelperPath)
+        ? `node ${relPath(cdpHelperPath)}`
+        : 'No browser helper is bundled. Configure a browser adapter explicitly before using CDP fallback.',
     });
     return;
   }
@@ -655,7 +680,7 @@ function cmdAuditPublic(dir) {
   write({
     ok: findings.length === 0,
     command: 'audit-public',
-    root: auditRoot,
+    root: redactedPath(auditRoot),
     file_count: walkFiles(auditRoot).length,
     findings,
   });
@@ -733,6 +758,7 @@ function authSendCode(registry, name) {
   const extraArgs = [];
   if (opts['area-code']) extraArgs.push('--area-code', opts['area-code']);
   extraArgs.push(opts.phone);
+  const displayArgs = displaySensitiveArgs(extraArgs);
   if (!opts.run) {
     write({
       ok: true,
@@ -742,13 +768,15 @@ function authSendCode(registry, name) {
       delegated: {
         ran: false,
         reason: 'pass --run to send SMS code',
-        command: [...sendCommand, ...displaySensitiveArgs(extraArgs)],
+        command: commandWithDisplayArgs(sendCommand, extraArgs, displayArgs),
       },
       next_action: `agent-access auth send-code ${entry.name} --phone PHONE --run`,
     });
     return;
   }
-  const delegated = sanitizeAuthDelegated(runCommand(sendCommand, extraArgs));
+  const delegated = sanitizeAuthDelegated(runCommand(sendCommand, extraArgs, {
+    displayCommand: commandWithDisplayArgs(sendCommand, extraArgs, displayArgs),
+  }));
   write({
     ok: delegated.ok,
     command: 'auth send-code',
@@ -818,6 +846,7 @@ async function authLogin(registry, name) {
       return;
     }
     const extraArgs = [];
+    const runDisplayArgs = [];
     if (method === 'sms') {
       if (!opts.phone || !opts.code) {
         fail(
@@ -828,8 +857,11 @@ async function authLogin(registry, name) {
       }
       if (opts['area-code']) extraArgs.push('--area-code', opts['area-code']);
       extraArgs.push(opts.phone, opts.code);
+      runDisplayArgs.push(...displaySensitiveArgs(extraArgs));
     }
-    const delegated = sanitizeAuthDelegated(runCommand(delegatedCommand, extraArgs));
+    const delegated = sanitizeAuthDelegated(runCommand(delegatedCommand, extraArgs, {
+      displayCommand: commandWithDisplayArgs(delegatedCommand, extraArgs, runDisplayArgs),
+    }));
     write({
       ok: delegated.ok,
       command: 'auth login',
@@ -1044,24 +1076,26 @@ function contributionsNew() {
 function contributionsShow(id) {
   const filePath = findDraft(id);
   if (!filePath) fail('draft_not_found', `No contribution draft matched: ${id}`, 'agent-access contributions list');
-  write({ ok: true, command: 'contributions show', path: filePath, draft: readJson(filePath, {}) });
+  write({ ok: true, command: 'contributions show', path: redactedPath(filePath), draft: readJson(filePath, {}) });
 }
 
 function redactString(value) {
   return String(value)
     .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, 'Bearer [REDACTED]')
-    .replace(/(authorization|cookie|set-cookie|x-api-key|api[-_]?key|token|session)[=:]\s*[^&\s"']+/gi, '$1=[REDACTED]')
+    .replace(/(authorization|cookie|set-cookie|x-api-key|api[-_]?key|token|session|password|passwd|secret|verification|otp|pin|user[_-]?id|account[_-]?id|username|account|code)[=:]\s*[^&\s"']+/gi, '$1=[REDACTED]')
     .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[REDACTED_EMAIL]')
     .replace(/(?<!\d)1[3-9]\d{9}(?!\d)/g, '[REDACTED_PHONE]')
     .replace(/\b(phone|mobile|tel|telephone)\b\s*[:=]?\s*\+?\d[\d -]{7,}\d/gi, '$1 [REDACTED_PHONE]')
-    .replace(/([?&](?:token|session|auth|code|key)=)[^&\s"']+/gi, '$1[REDACTED]');
+    .replace(/([?&](?:token|session|auth|code|key|user_id|account_id)=)[^&\s"']+/gi, '$1[REDACTED]')
+    .replace(/\/Users\/[A-Za-z0-9._-]+/g, '/Users/[REDACTED_USER]')
+    .replace(/(?:^|[\s"'`])~\/(?:\.codex|\.claude|cc-workspace|brain)(?=\/|[\s"'`]|$)/g, (match) => match[0] === '~' ? '~/$PRIVATE_PATH' : `${match[0]}~/$PRIVATE_PATH`);
 }
 
 function deepRedact(value) {
   if (Array.isArray(value)) return value.map(deepRedact);
   if (value && typeof value === 'object') {
     return Object.fromEntries(Object.entries(value).map(([key, item]) => {
-      if (/password|secret|cookie|token|session|authorization|verification|phone|email|qr/i.test(key)) {
+      if (/password|secret|cookie|token|session|authorization|verification|phone|email|qr|otp|pin/i.test(key) || /^(code|user_id|uid|account|account_id|username)$/i.test(key)) {
         return [key, '[REDACTED]'];
       }
       return [key, deepRedact(item)];
@@ -1071,17 +1105,41 @@ function deepRedact(value) {
   return value;
 }
 
+function residualPrivacyFindings(value) {
+  const text = JSON.stringify(value);
+  const checks = [
+    ['absolute_user_path', /\/Users\/(?!\[REDACTED_USER\])[^/"'\s]+/],
+    ['private_workspace_path', /(?:^|[~/"'\s])(?:cc-workspace|brain|\.codex|\.claude)(?:[/"'\s]|$)/],
+    ['credential_like_value', /\b(?:password|passwd|secret|token|cookie|authorization|api[-_]?key|session|verification|otp|pin|code)\b\s*[:=]\s*["']?(?!\[REDACTED\])[A-Za-z0-9._~+/=-]{4,}/i],
+    ['phone_number', /(?<!\d)(?:\+?86[\s-]?)?1[3-9]\d[\d\s-]{7,}\d(?!\d)/],
+    ['email', /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i],
+  ];
+  return checks
+    .filter(([, re]) => re.test(text))
+    .map(([code]) => code);
+}
+
 function contributionsScrub(id) {
   const filePath = findDraft(id);
   if (!filePath) fail('draft_not_found', `No contribution draft matched: ${id}`, 'agent-access contributions list');
   const draft = deepRedact(readJson(filePath, {}));
+  const residual = residualPrivacyFindings(draft);
   draft.privacy_review ||= {};
-  draft.privacy_review.redacted = true;
+  draft.privacy_review.redacted = residual.length === 0;
+  draft.privacy_review.redaction_status = residual.length === 0 ? 'clean' : 'needs_manual_review';
+  draft.privacy_review.residual_findings = residual;
   draft.privacy_review.scrubbed_at = NOW();
   draft.privacy_review.user_confirmed_for_submit = false;
   const outPath = filePath.replace(/\.json$/, '.scrubbed.json');
   writeJson(outPath, draft);
-  write({ ok: true, command: 'contributions scrub', source_path: filePath, scrubbed_path: outPath, draft });
+  write({
+    ok: residual.length === 0,
+    command: 'contributions scrub',
+    source_path: redactedPath(filePath),
+    scrubbed_path: redactedPath(outPath),
+    draft,
+  });
+  if (residual.length > 0) process.exit(1);
 }
 
 function contributionsSubmit(id) {
@@ -1090,8 +1148,8 @@ function contributionsSubmit(id) {
   fail(
     'explicit_confirmation_required',
     'Agent Access never uploads contribution drafts automatically.',
-    `Review and scrub ${filePath}, then ask the user before opening a PR or producing a patch.`,
-    { draft_path: filePath },
+    `Review and scrub ${redactedPath(filePath)}, then ask the user before opening a PR or producing a patch.`,
+    { draft_path: redactedPath(filePath) },
   );
 }
 
