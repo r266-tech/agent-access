@@ -2,6 +2,20 @@
 
 Read this for login, refresh, session reuse, QR/SMS/OAuth/password/API-key flows, or auth failure diagnostics.
 
+## Public Flow, Private State
+
+Agent Access may publish login methods, setup steps, and delegated commands. It must never publish or collect user sessions.
+
+Keep these local to each user's machine:
+
+- cookies, tokens, API keys, passwords, verification codes, QR payloads;
+- browser profile data and localStorage;
+- OS keychain items and encrypted stores;
+- local app databases and cache files;
+- account ids, usernames, phone numbers, emails, nicknames, avatars, and private URLs.
+
+The registry can say "this route supports QR/SMS/browser-session/cookie-import". It cannot contain anyone's QR code, cookie, token, browser dump, or account identifier.
+
 ## Goals
 
 - First use should guide the user through login.
@@ -17,13 +31,14 @@ agent-access auth status
 agent-access auth status <name>
 agent-access auth login <name> --method qr
 agent-access auth login <name> --method sms --phone <phone>
+agent-access auth login <name> --method browser-session
 agent-access auth login <name> --method password --account <account> --secret-stdin
 agent-access auth refresh <name>
 agent-access auth forget <name>
 agent-access auth doctor <name>
 ```
 
-Delegated login commands should be dry-run by default. Use `--run` only when the user intends to perform the login action.
+Delegated login commands should be dry-run by default. Use `--run` only when the user intends to perform the login action. Passwords, API keys, cookies, and verification codes must not be passed on argv.
 
 ## Credential Storage
 
@@ -31,7 +46,7 @@ Prefer:
 
 1. OS keychain / platform credential manager;
 2. encrypted local store;
-3. non-sensitive config files;
+3. target CLI local state with `0700` directories and `0600` files;
 4. env vars only as temporary overrides.
 
 Do not store raw credentials, verification codes, auth headers, browser logs, screenshots, or private page bodies in docs, logs, public repos, or contribution drafts.

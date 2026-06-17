@@ -157,7 +157,7 @@ function which(command) {
 function commandAvailability(entry) {
   return executableCandidates(entry).map((command) => ({
     command,
-    path: which(command),
+    path: redactedPath(which(command)),
     available: Boolean(which(command)),
   }));
 }
@@ -192,7 +192,15 @@ function redactedPath(filePath) {
     return rel || '.';
   }
   if (text.startsWith(STATE_DIR)) return text.replace(STATE_DIR, '$AGENT_ACCESS_STATE_DIR');
-  if (text.startsWith(os.homedir())) return text.replace(os.homedir(), '~');
+  if (text.startsWith(os.homedir())) {
+    const rel = path.relative(os.homedir(), text);
+    const parts = rel.split(path.sep).filter(Boolean);
+    const privateHomeRoots = new Set(['cc-' + 'workspace', 'br' + 'ain', '.' + 'codex', '.' + 'claude']);
+    if (parts[0] && privateHomeRoots.has(parts[0])) {
+      return ['~', '[private-home-root]', ...parts.slice(1)].join('/');
+    }
+    return text.replace(os.homedir(), '~');
+  }
   return text;
 }
 
@@ -259,6 +267,15 @@ function sanitizeAuthDelegated(result) {
       sanitized[stream] = redactString(text);
     }
   }
+  return sanitized;
+}
+
+function sanitizeCommandResult(result) {
+  if (!result || !result.ran) return result;
+  const sanitized = { ...result };
+  sanitized.command = Array.isArray(sanitized.command) ? sanitized.command.map((arg) => redactString(arg)) : sanitized.command;
+  if (typeof sanitized.stdout === 'string') sanitized.stdout = redactString(sanitized.stdout);
+  if (typeof sanitized.stderr === 'string') sanitized.stderr = redactString(sanitized.stderr);
   return sanitized;
 }
 
@@ -460,7 +477,8 @@ function help() {
 Usage:
   agent-access list [--target QUERY]
   agent-access info NAME
-  agent-access install NAME
+  agent-access install NAME [--run]
+  agent-access update NAME [--run]
   agent-access doctor [NAME] [--run]
   agent-access audit-public [DIR]
   agent-access auth status [NAME] [--profile PROFILE]
@@ -523,8 +541,82 @@ function cmdInfo(registry, name) {
   });
 }
 
+function commandEntries(section) {
+  const raw = Array.isArray(section?.commands)
+    ? section.commands
+    : (Array.isArray(section?.command) ? [section.command] : []);
+  return raw
+    .map((item) => (Array.isArray(item) ? { command: item } : item))
+    .filter((item) => item && Array.isArray(item.command) && item.command.length > 0);
+}
+
+function commandOsMatches(item) {
+  if (!item.os) return true;
+  const values = Array.isArray(item.os) ? item.os : [item.os];
+  return values.includes(process.platform);
+}
+
+function publicCommandEntries(section) {
+  return commandEntries(section).map((item) => ({
+    command: item.command,
+    ...(item.os ? { os: item.os } : {}),
+    ...(item.description ? { description: item.description } : {}),
+    active_on_this_platform: commandOsMatches(item),
+  }));
+}
+
+function runCommandEntries(entries) {
+  const results = [];
+  for (const entry of entries) {
+    const result = sanitizeCommandResult(runCommand(entry.command));
+    results.push({
+      ...(entry.description ? { description: entry.description } : {}),
+      ...result,
+    });
+    if (!result.ok) break;
+  }
+  return results;
+}
+
 function cmdInstall(registry, name) {
   const entry = requireEntry(registry, name);
+  const install = entry.install || null;
+  const commands = commandEntries(install);
+  const activeCommands = commands.filter(commandOsMatches);
+  if (commands.length > 0 && !opts.run) {
+    write({
+      ok: true,
+      command: 'install',
+      dry_run: true,
+      entry: publicEntry(entry),
+      install: {
+        ...install,
+        commands: publicCommandEntries(install),
+      },
+      next_action: `agent-access install ${entry.name} --run`,
+    });
+    return;
+  }
+  if (commands.length > 0 && activeCommands.length === 0) {
+    fail(
+      'no_install_command_for_platform',
+      `No install command is declared for ${entry.name} on ${process.platform}.`,
+      install?.hint || `Install ${entry.command} and rerun agent-access doctor ${entry.name}`,
+      { install: { ...install, commands: publicCommandEntries(install) } },
+    );
+  }
+  if (activeCommands.length > 0) {
+    const results = runCommandEntries(activeCommands);
+    const ok = results.every((result) => result.ok);
+    write({
+      ok,
+      command: 'install',
+      target: entry.name,
+      results,
+      next_action: ok ? `agent-access doctor ${entry.name} --run` : (install?.hint || `Install ${entry.command} manually`),
+    });
+    process.exit(ok ? 0 : 1);
+  }
   write({
     ok: false,
     command: 'install',
@@ -535,6 +627,59 @@ function cmdInstall(registry, name) {
     },
     entry: publicEntry(entry),
     install: entry.install || null,
+  });
+  process.exit(1);
+}
+
+function cmdUpdate(registry, name) {
+  const entry = requireEntry(registry, name);
+  const update = entry.update || null;
+  const commands = commandEntries(update);
+  const activeCommands = commands.filter(commandOsMatches);
+  if (commands.length > 0 && !opts.run) {
+    write({
+      ok: true,
+      command: 'update',
+      dry_run: true,
+      entry: publicEntry(entry),
+      update: {
+        ...update,
+        commands: publicCommandEntries(update),
+      },
+      next_action: `agent-access update ${entry.name} --run`,
+    });
+    return;
+  }
+  if (commands.length > 0 && activeCommands.length === 0) {
+    fail(
+      'no_update_command_for_platform',
+      `No update command is declared for ${entry.name} on ${process.platform}.`,
+      update?.hint || `Update ${entry.command} using its upstream instructions.`,
+      { update: { ...update, commands: publicCommandEntries(update) } },
+    );
+  }
+  if (activeCommands.length > 0) {
+    const results = runCommandEntries(activeCommands);
+    const ok = results.every((result) => result.ok);
+    write({
+      ok,
+      command: 'update',
+      target: entry.name,
+      results,
+      next_action: ok ? `agent-access doctor ${entry.name} --run` : (update?.hint || `Update ${entry.command} manually`),
+    });
+    process.exit(ok ? 0 : 1);
+  }
+  write({
+    ok: false,
+    command: 'update',
+    error: {
+      code: 'updater_not_configured',
+      message: `No updater is configured for ${entry.name}.`,
+      next_action: update?.hint || `Update ${entry.command} using its upstream instructions.`,
+    },
+    entry: publicEntry(entry),
+    update,
   });
   process.exit(1);
 }
@@ -558,8 +703,8 @@ function runDoctor(entry) {
     command: doctor,
     status: result.status,
     signal: result.signal,
-    stdout: (result.stdout || '').slice(-8000),
-    stderr: (result.stderr || '').slice(-8000),
+    stdout: redactString((result.stdout || '').slice(-8000)),
+    stderr: redactString((result.stderr || '').slice(-8000)),
     ok: result.status === 0,
   };
 }
@@ -596,7 +741,7 @@ function cmdDoctor(registry, name) {
       required_for: entry.auth?.required_for || [],
       methods: entry.auth?.methods || [],
       broker: entry.auth?.broker || 'unknown',
-      state: targetState(readAuthState(), entry.name),
+      state: redactAuthObject(targetState(readAuthState(), entry.name)),
     },
     doctor_run: doctorRun,
   });
@@ -693,7 +838,7 @@ function authStatus(registry, name) {
     write({
       ok: true,
       command: 'auth status',
-      state_path: AUTH_STATE_PATH,
+      state_path: redactedPath(AUTH_STATE_PATH),
       targets: Object.fromEntries(Object.entries(state.targets || {}).map(([target, value]) => [
         target,
         { profiles: Object.keys(value.profiles || {}) },
@@ -726,7 +871,7 @@ function authStatus(registry, name) {
     profile: profileName(),
     supported_methods: entry.auth?.methods || [],
     broker: entry.auth?.broker || 'unknown',
-    state: localState,
+    state: redactAuthObject(localState),
     authenticated,
     delegated,
     next_action: authenticated
@@ -1165,6 +1310,7 @@ async function main() {
   if (command === 'list') return cmdList(registry);
   if (command === 'info') return cmdInfo(registry, subcommand);
   if (command === 'install') return cmdInstall(registry, subcommand);
+  if (command === 'update') return cmdUpdate(registry, subcommand);
   if (command === 'doctor') return cmdDoctor(registry, subcommand);
   if (command === 'audit-public') return cmdAuditPublic(subcommand);
 

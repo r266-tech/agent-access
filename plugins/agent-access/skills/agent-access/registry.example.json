@@ -1,43 +1,478 @@
 {
-  "version": "0.1.0",
+  "version": "0.2.0",
   "updated_at": "2026-06-17",
+  "architecture": {
+    "core": "Agent Access is a thin Codex plugin and registry. It does not bundle user sessions, cookies, tokens, private browser data, or local CLI binaries.",
+    "session_boundary": "Each companion CLI owns its local auth/session store on the user machine. Registry entries may describe login/update commands, but never contain credentials.",
+    "evolution_loop": "Use a CLI, reflect on agent friction, improve CLI or references, dogfood the realistic flow, then contribute a scrubbed patch/draft for maintainer review.",
+    "swarm_governance": "Users can submit CLI improvements, references, and registry patches as explicit reviewed contributions. Nothing uploads automatically; maintainers approve before merge/release.",
+    "upgrade_model": "Agent Access updates through Codex plugin marketplace upgrades. Companion CLIs update through their own declared update commands or upstream package managers."
+  },
   "entries": [
     {
-      "name": "example",
+      "name": "wechat-cli",
       "aliases": [
-        "example-site"
+        "wx-cli",
+        "wechat",
+        "weixin",
+        "local-wechat"
       ],
-      "kind": "site",
+      "kind": "local-data",
       "targets": [
-        "example.com"
+        "WeChat",
+        "Weixin",
+        "local WeChat 4.x database",
+        "微信"
       ],
-      "command": "example-cli",
-      "description": "Example companion CLI entry. Replace with a real JSON-first CLI before promoting to a hot route.",
+      "command": "wechat-cli",
+      "description": "Read local WeChat conversations, contacts, groups, media, Moments, favorites, transfers, red packets, unread chats, and full-text search from the user machine. It does not send messages or control the WeChat UI.",
+      "repository": "https://github.com/r266-tech/wechat-cli",
       "install": {
-        "type": "manual",
-        "hint": "Install example-cli, then run agent-access doctor example --run."
+        "type": "script",
+        "trust_boundary": "downloads the public release installer; user WeChat data and keys remain local",
+        "commands": [
+          {
+            "os": "darwin",
+            "command": [
+              "bash",
+              "-lc",
+              "curl -fsSL https://raw.githubusercontent.com/r266-tech/wechat-cli/main/scripts/install-release.sh | env WECHAT_CLI_INSTALL_JSON=1 zsh"
+            ],
+            "description": "Install latest macOS release."
+          },
+          {
+            "os": "win32",
+            "command": [
+              "powershell",
+              "-NoProfile",
+              "-ExecutionPolicy",
+              "Bypass",
+              "-Command",
+              "[Environment]::SetEnvironmentVariable('WECHAT_CLI_INSTALL_JSON','1','Process'); irm https://raw.githubusercontent.com/r266-tech/wechat-cli/main/scripts/install-release.ps1 | iex"
+            ],
+            "description": "Install latest Windows release."
+          }
+        ],
+        "hint": "Install from https://github.com/r266-tech/wechat-cli, then run agent-access doctor wechat-cli --run."
+      },
+      "update": {
+        "type": "self-update",
+        "commands": [
+          {
+            "command": [
+              "wechat-cli",
+              "update"
+            ],
+            "description": "Update an existing release install to the latest GitHub release."
+          }
+        ],
+        "hint": "Run wechat-cli update, then agent-access doctor wechat-cli --run."
       },
       "doctor": [
-        "example-cli",
-        "doctor"
+        "wechat-cli",
+        "--help"
       ],
       "auth": {
-        "required_for": [],
-        "methods": [],
-        "planned_methods": [],
-        "broker": "none",
-        "commands": {}
+        "required_for": [
+          "local WeChat account data reads"
+        ],
+        "methods": [
+          "local-app-session"
+        ],
+        "broker": "delegates-to-cli",
+        "commands": {
+          "status": [
+            "wechat-cli",
+            "status"
+          ],
+          "doctor": [
+            "wechat-cli",
+            "agent"
+          ]
+        },
+        "local_state_only": true
       },
       "read_write": "read-only",
       "outputs": [
         "json",
         "ids",
-        "urls"
+        "media_refs",
+        "pagination",
+        "jsonl-events"
       ],
-      "source": "example",
+      "source_status": "public-release",
       "quality": {
-        "level": "example",
-        "last_verified_at": null
+        "level": "hot-route",
+        "last_verified_at": "2026-06-17",
+        "verification": "Local wechat-cli 1.6.19 help/version verified; public GitHub release v1.6.19 verified."
+      }
+    },
+    {
+      "name": "pmkt",
+      "aliases": [
+        "polymarket",
+        "polymarket-cli"
+      ],
+      "kind": "site",
+      "targets": [
+        "polymarket.com",
+        "gamma-api.polymarket.com",
+        "clob.polymarket.com",
+        "Polymarket"
+      ],
+      "command": "pmkt",
+      "description": "Read-only Polymarket CLI for market/event search, summaries, prices, outcomes, order books, trades, and public holder data. It never asks for wallet credentials, private keys, approvals, or order placement.",
+      "repository": "https://github.com/r266-tech/agent-access/issues?q=pmkt",
+      "install": {
+        "type": "source-pending",
+        "hint": "The public contract is registered here; installable standalone pmkt release is pending. Until then, use a local registry overlay or source checkout."
+      },
+      "update": {
+        "type": "source-pending",
+        "hint": "Update via the standalone pmkt package once published."
+      },
+      "doctor": [
+        "pmkt",
+        "--help"
+      ],
+      "auth": {
+        "required_for": [
+          "trading",
+          "private account data"
+        ],
+        "methods": [],
+        "planned_methods": [
+          "api-key",
+          "browser-session"
+        ],
+        "broker": "not-needed-for-public-read"
+      },
+      "read_write": "read-only",
+      "outputs": [
+        "json",
+        "ids",
+        "urls",
+        "pagination",
+        "prices",
+        "order_books"
+      ],
+      "source_status": "contract-public-source-pending",
+      "quality": {
+        "level": "hot-route-candidate",
+        "last_verified_at": "2026-06-17",
+        "verification": "Local pmkt 0.1.0 help verified; public standalone repo pending."
+      }
+    },
+    {
+      "name": "xyz",
+      "aliases": [
+        "xiaoyuzhou",
+        "xiaoyuzhou-fm",
+        "小宇宙"
+      ],
+      "kind": "site",
+      "targets": [
+        "xiaoyuzhoufm.com",
+        "Xiaoyuzhou",
+        "小宇宙 FM"
+      ],
+      "command": "xyz",
+      "command_aliases": [
+        "xiaoyuzhou"
+      ],
+      "description": "Read-only Xiaoyuzhou FM CLI for subscriptions, episodes, episode details, transcripts, search, and history.",
+      "repository": "https://github.com/r266-tech/xiaoyuzhou",
+      "install": {
+        "type": "git-python",
+        "commands": [
+          {
+            "command": [
+              "bash",
+              "-lc",
+              "python3 -m pip install --user git+https://github.com/r266-tech/xiaoyuzhou.git"
+            ],
+            "description": "Install xyz/xiaoyuzhou from the public GitHub repo."
+          }
+        ],
+        "hint": "Install from https://github.com/r266-tech/xiaoyuzhou, then run agent-access doctor xyz --run."
+      },
+      "update": {
+        "type": "pip-upgrade",
+        "commands": [
+          {
+            "command": [
+              "bash",
+              "-lc",
+              "python3 -m pip install --user --upgrade git+https://github.com/r266-tech/xiaoyuzhou.git"
+            ],
+            "description": "Upgrade xyz/xiaoyuzhou from GitHub."
+          }
+        ],
+        "hint": "Reinstall from GitHub with --upgrade."
+      },
+      "doctor": [
+        "xyz",
+        "--help"
+      ],
+      "auth": {
+        "required_for": [
+          "subscriptions",
+          "history",
+          "private profile"
+        ],
+        "methods": [
+          "sms"
+        ],
+        "broker": "delegates-to-cli",
+        "commands": {
+          "send_sms": [
+            "xyz",
+            "send-code"
+          ],
+          "login_sms": [
+            "xyz",
+            "login"
+          ]
+        },
+        "local_state_only": true
+      },
+      "read_write": "read-only",
+      "outputs": [
+        "json",
+        "jsonl",
+        "ids",
+        "urls",
+        "pagination",
+        "transcripts"
+      ],
+      "source_status": "public-source",
+      "quality": {
+        "level": "hot-route",
+        "last_verified_at": "2026-06-17",
+        "verification": "Public r266-tech/xiaoyuzhou repo and local xyz help verified."
+      }
+    },
+    {
+      "name": "douban",
+      "aliases": [
+        "db",
+        "douban-movie",
+        "豆瓣"
+      ],
+      "kind": "site",
+      "targets": [
+        "douban.com",
+        "movie.douban.com",
+        "Douban",
+        "豆瓣电影"
+      ],
+      "command": "douban",
+      "description": "Douban movie CLI for ratings/details, title search, nowplaying lists, current-user interest status, and explicit dry-run/apply mark/rate actions through the user browser session.",
+      "repository": "https://github.com/r266-tech/agent-access/issues?q=douban",
+      "install": {
+        "type": "source-pending",
+        "hint": "The public contract is registered here; standalone douban CLI release is pending. Use a local registry overlay or source checkout until published."
+      },
+      "update": {
+        "type": "source-pending",
+        "hint": "Update via the standalone douban package once published."
+      },
+      "doctor": [
+        "douban",
+        "doctor"
+      ],
+      "auth": {
+        "required_for": [
+          "mine",
+          "wish/collect/do lists",
+          "current user movie interest status",
+          "mark/rate writes"
+        ],
+        "methods": [
+          "browser-session"
+        ],
+        "planned_methods": [
+          "password",
+          "sms"
+        ],
+        "broker": "delegates-to-cli",
+        "commands": {
+          "status": [
+            "douban",
+            "auth",
+            "status"
+          ],
+          "login_browser_session": [
+            "douban",
+            "auth",
+            "login"
+          ]
+        },
+        "local_state_only": true
+      },
+      "read_write": "write-capable",
+      "write_policy": "dry-run by default; writes require target CLI apply flag and explicit user approval",
+      "outputs": [
+        "json",
+        "ids",
+        "urls",
+        "pagination"
+      ],
+      "source_status": "contract-public-source-pending",
+      "quality": {
+        "level": "hot-route-candidate",
+        "last_verified_at": "2026-06-17",
+        "verification": "Local Douban CLI help and prior movie/status flows verified; public standalone repo pending."
+      }
+    },
+    {
+      "name": "dp",
+      "aliases": [
+        "dianping",
+        "dazhongdianping",
+        "大众点评"
+      ],
+      "kind": "site",
+      "targets": [
+        "dianping.com",
+        "Dianping",
+        "Dazhong Dianping",
+        "大众点评"
+      ],
+      "command": "dp",
+      "command_aliases": [
+        "dianping"
+      ],
+      "description": "Dianping CLI for shop search, shop detail, cities, review text when exposed, and local browser/cookie auth diagnostics without exporting cookies.",
+      "repository": "https://github.com/r266-tech/agent-access/issues?q=dianping",
+      "install": {
+        "type": "source-pending",
+        "hint": "The public contract is registered here; standalone Dianping CLI release is pending. Use a local registry overlay or source checkout until published."
+      },
+      "update": {
+        "type": "source-pending",
+        "hint": "Update via the standalone dianping package once published."
+      },
+      "doctor": [
+        "dp",
+        "doctor"
+      ],
+      "auth": {
+        "required_for": [
+          "review detail",
+          "personalized pages",
+          "write actions if ever added"
+        ],
+        "methods": [
+          "browser-session",
+          "cookie-import"
+        ],
+        "planned_methods": [
+          "qr",
+          "sms"
+        ],
+        "broker": "delegates-to-cli",
+        "commands": {
+          "status": [
+            "dp",
+            "auth",
+            "--format",
+            "json",
+            "status"
+          ],
+          "login_cookie_import": [
+            "dp",
+            "auth",
+            "--format",
+            "json",
+            "import"
+          ]
+        },
+        "local_state_only": true
+      },
+      "read_write": "read-only",
+      "outputs": [
+        "json",
+        "ids",
+        "urls",
+        "pagination"
+      ],
+      "source_status": "contract-public-source-pending",
+      "quality": {
+        "level": "hot-route-candidate",
+        "last_verified_at": "2026-06-17",
+        "verification": "Local dp/dianping help verified; public standalone repo pending."
+      }
+    },
+    {
+      "name": "xhs",
+      "aliases": [
+        "xiaohongshu",
+        "rednote",
+        "小红书"
+      ],
+      "kind": "site",
+      "targets": [
+        "xiaohongshu.com",
+        "xhslink.com",
+        "Rednote",
+        "Xiaohongshu",
+        "小红书"
+      ],
+      "command": "xhs",
+      "description": "Agent-only Xiaohongshu/Rednote CLI wrapper for search, notes, users, comments, topics, feeds, and explicitly gated mutating pass-through commands.",
+      "repository": "https://github.com/r266-tech/agent-access/issues?q=xhs",
+      "install": {
+        "type": "source-pending",
+        "hint": "The public contract is registered here; standalone xhs wrapper release is pending. Users must provide their own local XHS session and approved upstream install."
+      },
+      "update": {
+        "type": "source-pending",
+        "hint": "Update via the standalone xhs wrapper once published."
+      },
+      "doctor": [
+        "xhs",
+        "--help"
+      ],
+      "auth": {
+        "required_for": [
+          "logged-in search",
+          "comments",
+          "personalized feeds",
+          "write actions"
+        ],
+        "methods": [
+          "browser-session",
+          "qr",
+          "sms"
+        ],
+        "broker": "delegates-to-cli",
+        "commands": {
+          "status": [
+            "xhs",
+            "status"
+          ],
+          "login_browser_session": [
+            "xhs",
+            "login"
+          ]
+        },
+        "local_state_only": true
+      },
+      "read_write": "write-capable",
+      "write_policy": "read defaults; mutating upstream commands require explicit target CLI command and user approval",
+      "outputs": [
+        "json",
+        "ids",
+        "urls",
+        "cache_refs",
+        "pagination"
+      ],
+      "source_status": "contract-public-source-pending",
+      "quality": {
+        "level": "hot-route-candidate",
+        "last_verified_at": "2026-06-17",
+        "verification": "Local xhs wrapper help verified; public standalone wrapper repo pending."
       }
     }
   ]
