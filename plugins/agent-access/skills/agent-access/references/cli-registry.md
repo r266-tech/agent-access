@@ -34,6 +34,7 @@ A promoted route should be discoverable and verifiable:
 ```bash
 agent-access list
 agent-access info <name>
+agent-access run <name> -- --help   # immediate path for bundled CLIs
 agent-access install <name>        # dry-run plan
 agent-access install <name> --run  # execute only when intended
 agent-access update <name>         # dry-run plan
@@ -42,6 +43,15 @@ agent-access doctor <name> --run
 ```
 
 Manual or source-pending entries are acceptable in the public registry when the capability contract is useful, but they must be labeled clearly. Do not pretend a standalone installer exists.
+
+`agent-access list/info` exposes `install.state`:
+
+- `installable`: registry declares executable install commands and a doctor command.
+- `installable` with `install.bundled: true`: the companion CLI ships inside the plugin and can run through `agent-access run <name> -- ...` before any PATH shim is installed.
+- `contract-only`: the public capability contract exists, but the standalone companion CLI installer is still pending.
+- `manual-or-unknown`: the entry is incomplete for public promotion and should not be advertised as user-installable.
+
+The release gate enforces this boundary. `public-release` and `public-source` entries must include `install.commands` or `install.type: bundled`, plus `doctor`; bundled entries must point to files under `companion-clis/`; `contract-public-source-pending` entries must keep `install.type: source-pending` and must not declare fake install commands.
 
 ## Manifest Gate
 

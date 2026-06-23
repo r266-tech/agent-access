@@ -43,18 +43,19 @@ agent-access info xyz
 agent-access info douban
 agent-access info dp
 agent-access info xhs
+agent-access run pmkt -- --help
 ```
 
 首批公开 registry route：
 
 - `wechat-cli` / `wx-cli`：读取本地微信/WeChat 数据；公开 release；不发消息，不控制 UI。
-- `pmkt`：Polymarket 公开市场、事件、价格、订单簿研究；只读；独立包待发布。
+- `pmkt`：Polymarket 公开市场、事件、价格、订单簿研究；只读；插件内置。
 - `xyz`：小宇宙 FM 读取；公开源码；登录态只留本机。
-- `douban`：豆瓣电影读取、想看/看过/评分；浏览器 session 登录；写操作默认 dry-run，显式 apply 才执行。
-- `dp` / `dianping`：大众点评店铺和评价读取；浏览器/session 或 stdin cookie 导入；不导出 cookie。
-- `xhs`：小红书 / Rednote 读取；用户 session 留本机；写操作必须显式命令和用户确认。
+- `douban`：豆瓣电影读取、想看/看过/评分；浏览器 session 登录；写操作默认 dry-run，显式 apply 才执行；插件内置。
+- `dp` / `dianping`：大众点评店铺和评价读取；浏览器/session 或 stdin cookie 导入；不导出 cookie；插件内置。
+- `xhs`：小红书 / Rednote 读取；公开 PyPI 包；用户 session 留本机；写操作必须显式命令和用户确认。
 
-`registry.json` 里的 `source_status` 说明 route 是否已有公开安装器，还是仅有公开契约、独立源码待发布。`cli-manifest.json` 是 registry 的确定性发现索引；发布前必须通过 `agent-access check-manifest`，避免 route 静默消失。若用户配置了 `AGENT_ACCESS_REGISTRY` 或 `~/.agent-access/registry*.json` 私有覆盖，先跑 `agent-access audit-overlay` 看清本地条目是否遮蔽了打包 route。
+`registry.json` 里的 `source_status` 说明 route 是否已有公开安装器、是否随插件内置，还是仅有公开契约、独立源码待发布。`agent-access list/info` 里的 `install.state` 是用户可用性的直接信号：`installable` 才能按 registry 安装或直接运行 bundled CLI；`contract-only` 只能当公开契约和贡献目标，不能假设用户机器已有可运行 CLI。`cli-manifest.json` 是 registry 的确定性发现索引；发布前必须通过 `agent-access check-manifest`，避免 route 静默消失。若用户配置了 `AGENT_ACCESS_REGISTRY` 或 `~/.agent-access/registry*.json` 私有覆盖，先跑 `agent-access audit-overlay` 看清本地条目是否遮蔽了打包 route。
 
 ## Capability Discovery
 

@@ -54,10 +54,61 @@ function authCommandKey(method) {
   return `login_${String(method).replace(/[^A-Za-z0-9]+/g, '_')}`;
 }
 
+function commandEntries(section) {
+  const raw = Array.isArray(section?.commands)
+    ? section.commands
+    : (Array.isArray(section?.command) ? [section.command] : []);
+  return raw
+    .map((item) => (Array.isArray(item) ? { command: item } : item))
+    .filter((item) => item && Array.isArray(item.command) && item.command.length > 0);
+}
+
+const promotedSourceStatuses = new Set(['public-release', 'public-source']);
+const pendingSourceStatuses = new Set(['contract-public-source-pending']);
+const allowedSourceStatuses = new Set([
+  ...promotedSourceStatuses,
+  ...pendingSourceStatuses,
+  'local-private',
+]);
+
+function bundledPath(entry) {
+  if (!entry.bundle?.path) return null;
+  return path.resolve(root, 'plugins/agent-access/skills/agent-access', entry.bundle.path);
+}
+
 for (const entry of registry.entries) {
   assert(entry.name, 'registry entry missing name');
   assert(entry.command, `registry entry ${entry.name} missing command`);
   assert(entry.source_status, `registry entry ${entry.name} missing source_status`);
+  assert(allowedSourceStatuses.has(entry.source_status), `registry entry ${entry.name} has invalid source_status`);
+  const installCommands = commandEntries(entry.install);
+  const updateCommands = commandEntries(entry.update);
+  const hasBundle = Boolean(entry.bundle?.type && entry.bundle?.path);
+  if (entry.install?.type === 'bundled') {
+    assert(hasBundle, `${entry.name} bundled install must declare bundle metadata`);
+    const resolved = bundledPath(entry);
+    const bundleRoot = path.resolve(root, 'plugins/agent-access/skills/agent-access/companion-clis');
+    assert(resolved === bundleRoot || resolved.startsWith(`${bundleRoot}${path.sep}`), `${entry.name} bundle path must stay under companion-clis`);
+    assert(fs.existsSync(resolved), `${entry.name} bundle path is missing`);
+    assert(['python-module', 'python-script', 'executable'].includes(entry.bundle.type), `${entry.name} bundle.type is invalid`);
+    if (entry.bundle.type === 'python-module') assert(entry.bundle.module, `${entry.name} python-module bundle missing module`);
+  }
+  if (promotedSourceStatuses.has(entry.source_status)) {
+    assert(entry.install?.type !== 'source-pending', `${entry.name} is promoted but install.type is source-pending`);
+    assert(installCommands.length > 0 || entry.install?.type === 'bundled', `${entry.name} is promoted but has no install.commands or bundle`);
+    assert(Array.isArray(entry.doctor) && entry.doctor.length > 0, `${entry.name} is promoted but has no doctor command`);
+    assert(/^https:\/\//.test(String(entry.repository || '')), `${entry.name} is promoted but has no public https repository`);
+  }
+  if (pendingSourceStatuses.has(entry.source_status)) {
+    assert(entry.install?.type === 'source-pending', `${entry.name} is source-pending but install.type is not source-pending`);
+    assert(installCommands.length === 0, `${entry.name} is source-pending but declares install.commands`);
+    assert(updateCommands.length === 0, `${entry.name} is source-pending but declares update.commands`);
+    assert(
+      /(pending|source checkout|overlay|待发布|源码待发布)/i.test(`${entry.install?.hint || ''} ${entry.update?.hint || ''}`),
+      `${entry.name} source-pending hints must clearly say the standalone installer is pending`,
+    );
+  }
+  assert(entry.source_status !== 'local-private', `registry entry ${entry.name} is local-private and must not ship`);
   assert(entry.source_strategy, `registry entry ${entry.name} missing source_strategy`);
   assert(entry.source_contract, `registry entry ${entry.name} missing source_contract`);
   assert(entry.source_note, `registry entry ${entry.name} missing source_note`);

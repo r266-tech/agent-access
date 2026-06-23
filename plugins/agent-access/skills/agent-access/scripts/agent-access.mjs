@@ -14,6 +14,7 @@ const MANIFEST_PATH = process.env.AGENT_ACCESS_MANIFEST || path.join(ROOT, 'cli-
 const STATE_DIR = process.env.AGENT_ACCESS_STATE_DIR || path.join(os.homedir(), '.agent-access');
 const AUTH_STATE_PATH = path.join(STATE_DIR, 'auth-state.json');
 const CONTRIBUTIONS_DIR = path.join(STATE_DIR, 'contributions');
+const BUNDLED_CLI_ROOT = path.join(ROOT, 'companion-clis');
 
 const NOW = () => new Date().toISOString();
 
@@ -184,6 +185,166 @@ function commandAvailability(entry) {
   }));
 }
 
+function hasBundle(entry) {
+  return Boolean(entry.bundle?.path && entry.bundle?.type);
+}
+
+function bundlePath(entry) {
+  if (!hasBundle(entry)) return null;
+  const resolved = path.resolve(ROOT, entry.bundle.path);
+  if (!resolved.startsWith(`${BUNDLED_CLI_ROOT}${path.sep}`) && resolved !== BUNDLED_CLI_ROOT) {
+    fail('bundle_path_invalid', `Bundled CLI path escapes companion-clis: ${entry.name}`, 'Fix registry.json before packaging.');
+  }
+  return resolved;
+}
+
+function bundledCommand(entry, args = []) {
+  if (!hasBundle(entry)) return null;
+  const resolved = bundlePath(entry);
+  if (entry.bundle.type === 'python-module') {
+    return {
+      command: [process.env.PYTHON || 'python3', '-m', entry.bundle.module, ...args],
+      cwd: resolved,
+      display: [entry.command || entry.name, ...args],
+    };
+  }
+  if (entry.bundle.type === 'python-script') {
+    return {
+      command: [process.env.PYTHON || 'python3', resolved, ...args],
+      cwd: path.dirname(resolved),
+      display: [entry.command || entry.name, ...args],
+    };
+  }
+  if (entry.bundle.type === 'executable') {
+    return {
+      command: [resolved, ...args],
+      cwd: path.dirname(resolved),
+      display: [entry.command || entry.name, ...args],
+    };
+  }
+  return null;
+}
+
+function runBundledCommand(entry, args = [], options = {}) {
+  const bundled = bundledCommand(entry, args);
+  if (!bundled) {
+    return {
+      ran: false,
+      ok: false,
+      reason: 'bundle_missing',
+      command: [entry.command || entry.name, ...args],
+    };
+  }
+  const [executable, ...commandArgs] = bundled.command;
+  if (!which(executable)) {
+    return {
+      ran: false,
+      ok: false,
+      reason: 'bundle_runtime_missing',
+      command: bundled.display,
+      next_action: `Install ${executable} or use agent-access install ${entry.name} after configuring the runtime.`,
+    };
+  }
+  const result = spawnSync(executable, commandArgs, {
+    cwd: bundled.cwd,
+    env: {
+      ...process.env,
+      BABATA_WORKSPACE: process.env.BABATA_WORKSPACE || STATE_DIR,
+      AGENT_ACCESS_STATE_DIR: STATE_DIR,
+      AGENT_ACCESS_BUNDLED_CLI: entry.name || entry.command || '',
+      PYTHONDONTWRITEBYTECODE: process.env.PYTHONDONTWRITEBYTECODE || '1',
+    },
+    encoding: options.inherit ? undefined : 'utf8',
+    timeout: Number(opts.timeout || 120000),
+    maxBuffer: 1024 * 1024 * 8,
+    stdio: options.inherit ? 'inherit' : ['inherit', 'pipe', 'pipe'],
+  });
+  return {
+    ran: true,
+    command: bundled.display,
+    status: result.status,
+    signal: result.signal,
+    stdout: options.inherit ? '' : (result.stdout || ''),
+    stderr: options.inherit ? '' : (result.stderr || ''),
+    ok: result.status === 0,
+  };
+}
+
+function shellQuote(value) {
+  return `'${String(value).replace(/'/g, `'\\''`)}'`;
+}
+
+function shimNames(entry) {
+  return [...new Set([entry.command, ...(entry.command_aliases || [])].filter(Boolean))];
+}
+
+function installBundledShims(entry) {
+  const binDir = path.resolve(opts['bin-dir'] || path.join(os.homedir(), '.local', 'bin'));
+  fs.mkdirSync(binDir, { recursive: true, mode: 0o755 });
+  const scriptPath = fileURLToPath(import.meta.url);
+  const written = [];
+  for (const command of shimNames(entry)) {
+    if (!/^[A-Za-z0-9._-]+$/.test(command)) continue;
+    const shimPath = path.join(binDir, command);
+    const body = [
+      '#!/usr/bin/env sh',
+      'set -eu',
+      `exec node ${shellQuote(scriptPath)} run ${shellQuote(entry.name)} -- "$@"`,
+      '',
+    ].join('\n');
+    fs.writeFileSync(shimPath, body, { mode: 0o755 });
+    written.push(redactedPath(shimPath));
+  }
+  return { bin_dir: redactedPath(binDir), shims: written };
+}
+
+function commandEntries(section) {
+  const raw = Array.isArray(section?.commands)
+    ? section.commands
+    : (Array.isArray(section?.command) ? [section.command] : []);
+  return raw
+    .map((item) => (Array.isArray(item) ? { command: item } : item))
+    .filter((item) => item && Array.isArray(item.command) && item.command.length > 0);
+}
+
+function installContract(entry) {
+  const installCommands = commandEntries(entry.install);
+  const updateCommands = commandEntries(entry.update);
+  const installType = entry.install?.type || null;
+  const updateType = entry.update?.type || null;
+  const sourceStatus = entry.source_status || 'unknown';
+  const bundled = hasBundle(entry) && installType === 'bundled';
+  const sourcePending = !bundled && (sourceStatus === 'contract-public-source-pending' || installType === 'source-pending');
+  const doctorConfigured = Array.isArray(entry.doctor) && entry.doctor.length > 0;
+  const installReady = !sourcePending && (installCommands.length > 0 || bundled) && doctorConfigured;
+  return {
+    state: sourcePending ? 'contract-only' : (installReady ? 'installable' : 'manual-or-unknown'),
+    ready: installReady,
+    source_status: sourceStatus,
+    install_type: installType,
+    update_type: updateType,
+    install_command_count: installCommands.length + (bundled ? 1 : 0),
+    update_command_count: updateCommands.length,
+    doctor_configured: doctorConfigured,
+    bundled,
+    next_action: sourcePending
+      ? `Standalone ${entry.command || entry.name} installer is pending; use an explicit local overlay/source checkout, and do not assume this CLI exists on a user machine.`
+      : (bundled
+        ? `Run agent-access run ${entry.name} -- --help immediately, or agent-access install ${entry.name} --run to create PATH shims.`
+        : `Run agent-access install ${entry.name}, then agent-access install ${entry.name} --run only when the user wants to modify this machine.`),
+  };
+}
+
+function infoEntry(entry) {
+  return {
+    ...entry,
+    install: {
+      ...(entry.install || {}),
+      ...installContract(entry),
+    },
+  };
+}
+
 function authCommand(entry, key) {
   const command = entry.auth?.commands?.[key];
   return Array.isArray(command) && command.length ? command : null;
@@ -263,6 +424,9 @@ function redactAuthObject(value) {
   if (Array.isArray(value)) return value.map(redactAuthObject);
   if (value && typeof value === 'object') {
     return Object.fromEntries(Object.entries(value).map(([key, item]) => {
+      if (/^code$/i.test(key) && typeof item === 'string' && /^[A-Z][A-Z0-9_.:-]{1,80}$/i.test(item) && /[_.:-]/.test(item)) {
+        return [key, item];
+      }
       if (/^(id|uid|user_id|username|red_id|nickname|name|account|account_id|email|phone|mobile|avatar|image|url)$/i.test(key)) {
         return [key, (typeof item === 'boolean' || typeof item === 'number' || item == null) ? item : '[REDACTED]'];
       }
@@ -410,6 +574,11 @@ function publicEntry(entry) {
     planned_auth_methods: entry.auth?.planned_methods || [],
     auth_broker: entry.auth?.broker || 'unknown',
     auth_command_keys: Object.keys(entry.auth?.commands || {}),
+    install: installContract(entry),
+    bundle: hasBundle(entry) ? {
+      type: entry.bundle.type,
+      path: relPath(bundlePath(entry)),
+    } : null,
     quality: entry.quality || {},
     description: entry.description,
   };
@@ -451,6 +620,13 @@ function entryManifest(entry) {
     auth_broker: entry.auth?.broker || 'unknown',
     install_type: entry.install?.type || null,
     update_type: entry.update?.type || null,
+    install_state: installContract(entry).state,
+    install_ready: installContract(entry).ready,
+    install_command_count: installContract(entry).install_command_count,
+    update_command_count: installContract(entry).update_command_count,
+    doctor_configured: installContract(entry).doctor_configured,
+    bundled: installContract(entry).bundled,
+    bundle_type: entry.bundle?.type || null,
     verify_flow: entry.verify?.required_flow || [],
     fixture_policy: entry.verify?.fixture_policy || null,
     probe_count: probes.length,
@@ -886,6 +1062,7 @@ function help() {
 Usage:
   agent-access list [--target QUERY]
   agent-access info NAME
+  agent-access run NAME -- [ARGS...]
   agent-access install NAME [--run]
   agent-access update NAME [--run]
   agent-access doctor [NAME] [--run]
@@ -946,7 +1123,7 @@ function cmdInfo(registry, name) {
   write({
     ok: true,
     command: 'info',
-    entry,
+    entry: infoEntry(entry),
     availability: commandAvailability(entry),
     auth_commands: entry.auth?.commands || {},
     references: {
@@ -955,15 +1132,6 @@ function cmdInfo(registry, name) {
       site_patterns: sitePatternRefs(entry).map(relPath),
     },
   });
-}
-
-function commandEntries(section) {
-  const raw = Array.isArray(section?.commands)
-    ? section.commands
-    : (Array.isArray(section?.command) ? [section.command] : []);
-  return raw
-    .map((item) => (Array.isArray(item) ? { command: item } : item))
-    .filter((item) => item && Array.isArray(item.command) && item.command.length > 0);
 }
 
 function commandOsMatches(item) {
@@ -998,9 +1166,66 @@ function runCommandEntries(entries) {
   return results;
 }
 
+function runEntryCommand(entry, command, extraArgs = [], options = {}) {
+  if (hasBundle(entry) && Array.isArray(command) && normalize(command[0]) === normalize(entry.command)) {
+    const displayCommand = options.displayCommand || commandWithDisplayArgs(command, extraArgs);
+    const result = runBundledCommand(entry, [...command.slice(1), ...extraArgs]);
+    return {
+      ...result,
+      command: displayCommand,
+    };
+  }
+  return runCommand(command, extraArgs, options);
+}
+
 function cmdInstall(registry, name) {
   const entry = requireEntry(registry, name);
   const install = entry.install || null;
+  const contract = installContract(entry);
+  if (contract.bundled) {
+    if (!opts.run) {
+      write({
+        ok: true,
+        command: 'install',
+        dry_run: true,
+        entry: publicEntry(entry),
+        install: {
+          ...install,
+          creates_shims: shimNames(entry),
+          bin_dir: redactedPath(path.resolve(opts['bin-dir'] || path.join(os.homedir(), '.local', 'bin'))),
+        },
+        next_action: `agent-access install ${entry.name} --run`,
+      });
+      return;
+    }
+    const shimResult = installBundledShims(entry);
+    write({
+      ok: shimResult.shims.length > 0,
+      command: 'install',
+      target: entry.name,
+      install_type: 'bundled',
+      ...shimResult,
+      next_action: shimResult.shims.length > 0
+        ? `Run ${entry.command} --help or agent-access doctor ${entry.name} --run.`
+        : 'No valid shim names were declared for this entry.',
+    });
+    process.exit(shimResult.shims.length > 0 ? 0 : 1);
+  }
+  if (contract.state === 'contract-only') {
+    write({
+      ok: false,
+      command: 'install',
+      target: entry.name,
+      error: {
+        code: 'companion_cli_source_pending',
+        message: `${entry.name} is registered as a public contract, but its standalone companion CLI installer is not published yet.`,
+        next_action: install?.hint || contract.next_action,
+      },
+      entry: publicEntry(entry),
+      install,
+    });
+    process.exit(1);
+  }
   const commands = commandEntries(install);
   const activeCommands = commands.filter(commandOsMatches);
   if (commands.length > 0 && !opts.run) {
@@ -1054,6 +1279,41 @@ function cmdInstall(registry, name) {
 function cmdUpdate(registry, name) {
   const entry = requireEntry(registry, name);
   const update = entry.update || null;
+  const contract = installContract(entry);
+  if (contract.bundled) {
+    if (opts.run) {
+      fail(
+        'plugin_upgrade_required',
+        `${entry.name} is bundled in Agent Access and cannot be updated by running the companion CLI updater.`,
+        'Upgrade or reinstall the Agent Access plugin package, then rerun agent-access doctor.',
+        { target: entry.name, update_type: entry.update?.type || 'plugin-upgrade' },
+      );
+    }
+    write({
+      ok: true,
+      command: 'update',
+      target: entry.name,
+      dry_run: true,
+      update_type: entry.update?.type || 'plugin-upgrade',
+      next_action: 'Bundled companion CLIs update with the Agent Access plugin package. Upgrade/reinstall the plugin, then rerun agent-access doctor.',
+    });
+    return;
+  }
+  if (contract.state === 'contract-only') {
+    write({
+      ok: false,
+      command: 'update',
+      target: entry.name,
+      error: {
+        code: 'companion_cli_source_pending',
+        message: `${entry.name} is registered as a public contract, but its standalone companion CLI updater is not published yet.`,
+        next_action: update?.hint || contract.next_action,
+      },
+      entry: publicEntry(entry),
+      update,
+    });
+    process.exit(1);
+  }
   const commands = commandEntries(update);
   const activeCommands = commands.filter(commandOsMatches);
   if (commands.length > 0 && !opts.run) {
@@ -1104,6 +1364,44 @@ function cmdUpdate(registry, name) {
   process.exit(1);
 }
 
+function cmdRun(registry, name, args = []) {
+  const entry = requireEntry(registry, name);
+  if (hasBundle(entry)) {
+    const result = runBundledCommand(entry, args);
+    if (!result.ran) {
+      write({
+        ok: false,
+        command: 'run',
+        target: entry.name,
+        error: {
+          code: result.reason || 'bundle_run_failed',
+          message: `Could not run bundled CLI for ${entry.name}.`,
+          next_action: result.next_action || `Run agent-access info ${entry.name} and check bundle metadata.`,
+        },
+        result,
+      });
+      process.exit(1);
+    }
+    if (result.stdout) process.stdout.write(result.stdout);
+    if (result.stderr) process.stderr.write(result.stderr);
+    process.exit(result.status || 0);
+  }
+  const external = runnableCommand([entry.command]);
+  if (!external) {
+    fail(
+      'command_missing',
+      `${entry.command} is not installed and this entry is not bundled.`,
+      `Run agent-access install ${entry.name}${installContract(entry).ready ? ' --run' : ''}, or inspect agent-access info ${entry.name}.`,
+    );
+  }
+  const result = spawnSync(external[0], [...external.slice(1), ...args], {
+    encoding: undefined,
+    stdio: 'inherit',
+    timeout: Number(opts.timeout || 120000),
+  });
+  process.exit(result.status || 0);
+}
+
 function runDoctor(entry) {
   const doctor = entry.doctor;
   if (!Array.isArray(doctor) || doctor.length === 0) {
@@ -1111,6 +1409,9 @@ function runDoctor(entry) {
   }
   const executable = which(doctor[0]);
   if (!executable) {
+    if (hasBundle(entry) && normalize(doctor[0]) === normalize(entry.command)) {
+      return sanitizeCommandResult(runBundledCommand(entry, doctor.slice(1)));
+    }
     return { ran: false, reason: 'doctor_command_missing', command: doctor };
   }
   const result = spawnSync(executable, doctor.slice(1), {
@@ -1406,7 +1707,7 @@ function normalizeProbe(probe, index = 0) {
   };
 }
 
-function runProbe(probe) {
+function runProbe(probe, entry = null) {
   if (!probe.safe) {
     return {
       name: probe.name,
@@ -1426,7 +1727,10 @@ function runProbe(probe) {
       success_criteria: probe.success_criteria,
     };
   }
-  const result = sanitizeCommandResult(runCommand(probe.command));
+  const canUseBundle = entry && hasBundle(entry) && normalize(probe.command[0]) === normalize(entry.command);
+  const result = sanitizeCommandResult(canUseBundle
+    ? runBundledCommand(entry, probe.command.slice(1))
+    : runCommand(probe.command));
   const criteria = successCriteriaMet(result, probe.success_criteria);
   const explicitExitCode = probe.success_criteria && probe.success_criteria.exit_code !== undefined;
   return {
@@ -1473,7 +1777,7 @@ function cmdVerify(registry, name) {
     });
     process.exit(1);
   }
-  const results = probes.map(runProbe);
+  const results = probes.map((probe) => runProbe(probe, entry));
   const ok = results.every((result) => result.ok);
   write({
     ok,
@@ -1692,9 +1996,106 @@ const VERIFY_FLOW_STEPS = new Set([
 ]);
 
 const REQUIRED_ERROR_EXIT_CODES = new Set([1, 2, 66, 75, 77]);
+const PROMOTED_SOURCE_STATUSES = new Set(['public-release', 'public-source']);
+const PENDING_SOURCE_STATUSES = new Set(['contract-public-source-pending']);
+const ALLOWED_SOURCE_STATUSES = new Set([
+  ...PROMOTED_SOURCE_STATUSES,
+  ...PENDING_SOURCE_STATUSES,
+  'local-private',
+]);
 
 function addContractFinding(findings, severity, code, message, details = {}) {
   findings.push({ severity, code, message, ...details });
+}
+
+function validateInstallContract(entry, findings) {
+  const target = entry.name || '[unknown]';
+  const sourceStatus = entry.source_status || null;
+  const install = entry.install || null;
+  const update = entry.update || null;
+  const contract = installContract(entry);
+  if (!sourceStatus || !ALLOWED_SOURCE_STATUSES.has(sourceStatus)) {
+    addContractFinding(findings, 'P0', 'source_status_invalid', `${target} has invalid source_status`, {
+      target,
+      value: sourceStatus,
+      allowed: [...ALLOWED_SOURCE_STATUSES],
+    });
+    return;
+  }
+  if (sourceStatus === 'local-private') {
+    addContractFinding(findings, 'P0', 'local_private_route_shipped', `${target} is local-private and must not ship in the public registry`, {
+      target,
+    });
+  }
+  if (contract.bundled) {
+    const bundledPath = bundlePath(entry);
+    if (!fs.existsSync(bundledPath)) {
+      addContractFinding(findings, 'P0', 'bundle_path_missing', `${target} bundled CLI path is missing`, {
+        target,
+        path: relPath(bundledPath),
+      });
+    }
+    if (!['python-module', 'python-script', 'executable'].includes(entry.bundle?.type)) {
+      addContractFinding(findings, 'P0', 'bundle_type_invalid', `${target} has invalid bundle.type`, {
+        target,
+        value: entry.bundle?.type || null,
+      });
+    }
+    if (entry.bundle?.type === 'python-module' && !entry.bundle.module) {
+      addContractFinding(findings, 'P0', 'bundle_module_missing', `${target} python-module bundle missing module`, { target });
+    }
+  }
+  if (PROMOTED_SOURCE_STATUSES.has(sourceStatus)) {
+    if (contract.install_type === 'source-pending') {
+      addContractFinding(findings, 'P0', 'promoted_install_source_pending', `${target} is ${sourceStatus} but install.type is source-pending`, {
+        target,
+        next_action: 'Either add a real installer command or downgrade source_status to contract-public-source-pending.',
+      });
+    }
+    if (contract.install_command_count === 0) {
+      addContractFinding(findings, 'P0', 'promoted_install_command_missing', `${target} is ${sourceStatus} but has no install command`, {
+        target,
+        next_action: `Add install.commands for ${target}, or mark the route contract-public-source-pending.`,
+      });
+    }
+    if (!contract.doctor_configured) {
+      addContractFinding(findings, 'P0', 'promoted_doctor_missing', `${target} is ${sourceStatus} but has no doctor command`, {
+        target,
+        next_action: `Add a safe doctor command so agent-access doctor ${target} --run can verify installation.`,
+      });
+    }
+    if (!entry.repository || !/^https:\/\//.test(String(entry.repository))) {
+      addContractFinding(findings, 'P1', 'promoted_repository_missing', `${target} is ${sourceStatus} but has no public https repository`, {
+        target,
+        repository: entry.repository || null,
+      });
+    }
+  }
+  if (PENDING_SOURCE_STATUSES.has(sourceStatus)) {
+    if (contract.install_type !== 'source-pending') {
+      addContractFinding(findings, 'P0', 'pending_install_type_invalid', `${target} is source-pending but install.type is not source-pending`, {
+        target,
+        value: contract.install_type,
+      });
+    }
+    if (contract.install_command_count > 0) {
+      addContractFinding(findings, 'P0', 'pending_install_command_declared', `${target} is source-pending but declares install commands`, {
+        target,
+        next_action: 'Remove the commands, or promote the route only after the standalone installer is published.',
+      });
+    }
+    if (contract.update_command_count > 0) {
+      addContractFinding(findings, 'P1', 'pending_update_command_declared', `${target} is source-pending but declares update commands`, {
+        target,
+      });
+    }
+    const hint = `${install?.hint || ''} ${update?.hint || ''}`;
+    if (!/(pending|source checkout|overlay|待发布|源码待发布)/i.test(hint)) {
+      addContractFinding(findings, 'P1', 'pending_hint_missing', `${target} source-pending route must clearly tell agents it is not generally installable yet`, {
+        target,
+      });
+    }
+  }
 }
 
 function validateReferenceContracts(findings) {
@@ -1748,6 +2149,7 @@ function validateReferenceContracts(findings) {
 function validateRegistryContracts(registry, findings) {
   for (const entry of registry.entries || []) {
     const target = entry.name || '[unknown]';
+    validateInstallContract(entry, findings);
     if (!entry.source_strategy || !SOURCE_STRATEGIES.has(entry.source_strategy)) {
       addContractFinding(findings, 'P0', 'invalid_source_strategy', `${target} has invalid or missing source_strategy`, {
         target,
@@ -1880,7 +2282,7 @@ function authStatus(registry, name) {
   }
   const entry = requireEntry(registry, name);
   const statusCommand = authCommand(entry, 'status');
-  const rawDelegated = statusCommand && opts.run ? runCommand(statusCommand) : null;
+  const rawDelegated = statusCommand && opts.run ? runEntryCommand(entry, statusCommand) : null;
   const delegated = statusCommand
     ? (opts.run ? sanitizeAuthDelegated(rawDelegated) : {
       ran: false,
@@ -1892,7 +2294,7 @@ function authStatus(registry, name) {
   const authenticated = localStateLooksAuthenticated(localState) || delegatedLooksAuthenticated(rawDelegated);
   const loginMethod = preferredLoginMethod(entry);
   write({
-    ok: true,
+    ok: !rawDelegated || rawDelegated.ok,
     command: 'auth status',
     target: entry.name,
     profile: profileName(),
@@ -1946,7 +2348,7 @@ function authSendCode(registry, name) {
     });
     return;
   }
-  const delegated = sanitizeAuthDelegated(runCommand(sendCommand, extraArgs, {
+  const delegated = sanitizeAuthDelegated(runEntryCommand(entry, sendCommand, extraArgs, {
     displayCommand: commandWithDisplayArgs(sendCommand, extraArgs, displayArgs),
   }));
   write({
@@ -1981,8 +2383,23 @@ async function authLogin(registry, name) {
   const delegatedCommand = authCommand(entry, methodCommandKey(method));
   if (delegatedCommand) {
     if (method === 'cookie-import') {
+      if (opts.run && opts['secret-stdin']) {
+        const delegated = sanitizeAuthDelegated(runEntryCommand(entry, delegatedCommand, [], {
+          displayCommand: [...delegatedCommand, '< REDACTED_COOKIE_FILE'],
+        }));
+        write({
+          ok: delegated.ok,
+          command: 'auth login',
+          target: entry.name,
+          profile: profileName(),
+          method,
+          delegated,
+          next_action: delegated.ok ? `agent-access auth status ${entry.name} --run` : `agent-access auth doctor ${entry.name}`,
+        });
+        process.exit(delegated.ok ? 0 : 1);
+      }
       write({
-        ok: true,
+        ok: !opts.run,
         command: 'auth login',
         target: entry.name,
         profile: profileName(),
@@ -1992,8 +2409,9 @@ async function authLogin(registry, name) {
           reason: 'cookie import requires secret stdin; Agent Access will not echo or collect cookies',
           command: [...delegatedCommand, '< cookies.json'],
         },
-        next_action: `${delegatedCommand.join(' ')} < REDACTED_COOKIE_FILE`,
+        next_action: `agent-access auth login ${entry.name} --method cookie-import --secret-stdin --run < REDACTED_COOKIE_FILE`,
       });
+      if (opts.run) process.exit(1);
       return;
     }
     const displayArgs = [];
@@ -2031,7 +2449,7 @@ async function authLogin(registry, name) {
       extraArgs.push(opts.phone, opts.code);
       runDisplayArgs.push(...displaySensitiveArgs(extraArgs));
     }
-    const delegated = sanitizeAuthDelegated(runCommand(delegatedCommand, extraArgs, {
+    const delegated = sanitizeAuthDelegated(runEntryCommand(entry, delegatedCommand, extraArgs, {
       displayCommand: commandWithDisplayArgs(delegatedCommand, extraArgs, runDisplayArgs),
     }));
     write({
@@ -2274,7 +2692,7 @@ function redactString(value) {
     .replace(/(["']?(?:authorization|cookie|set-cookie|x-api-key|api[-_]?key|token|session|password|passwd|secret|verification|otp|pin|user[_-]?id|account[_-]?id|username|account|code)["']?\s*:\s*)["'][^"']+["']/gi, '$1"[REDACTED]"')
     .replace(/(["']?(?:authorization|cookie|set-cookie|x-api-key|api[-_]?key|token|session|password|passwd|secret|verification|otp|pin|user[_-]?id|account[_-]?id|username|account|code)["']?\s*:\s*)[A-Za-z0-9._~+/=-]{4,}/gi, '$1[REDACTED]')
     .replace(/(authorization|cookie|set-cookie|x-api-key|api[-_]?key|token|session|password|passwd|secret|verification|otp|pin|user[_-]?id|account[_-]?id|username|account|code)[=:]\s*[^&\s"']+/gi, '$1=[REDACTED]')
-    .replace(/\b(authorization|cookie|set-cookie|x-api-key|api[-_]?key|token|session|password|passwd|secret|verification|otp|pin|user[_-]?id|account[_-]?id|username|account|code)\b\s+["']?[A-Za-z0-9._~+/=-]{8,}["']?/gi, '$1 [REDACTED]')
+    .replace(/\b(authorization|cookie|set-cookie|x-api-key|api[-_]?key|token|session|password|passwd|secret|verification|otp|pin|user[_-]?id|account[_-]?id|username|account|code)\b[ \t]+["']?[A-Za-z0-9._~+/=-]{8,}["']?/gi, '$1 [REDACTED]')
     .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[REDACTED_EMAIL]')
     .replace(/(?<!\d)1[3-9]\d{9}(?!\d)/g, '[REDACTED_PHONE]')
     .replace(/\b(phone|mobile|tel|telephone)\b\s*[:=]?\s*\+?\d[\d -]{7,}\d/gi, '$1 [REDACTED_PHONE]')
@@ -2349,8 +2767,8 @@ function contributionsSubmit(id) {
 
 async function main() {
   if (opts.help || pos.length === 0 || pos[0] === 'help') {
-    console.log(help());
-    return;
+    process.stdout.write(`${help()}\n`);
+    process.exit(0);
   }
 
   const [command, subcommand, target] = pos;
@@ -2365,6 +2783,7 @@ async function main() {
 
   if (command === 'list') return cmdList(registry);
   if (command === 'info') return cmdInfo(registry, subcommand);
+  if (command === 'run') return cmdRun(registry, subcommand, pos.slice(2));
   if (command === 'install') return cmdInstall(registry, subcommand);
   if (command === 'update') return cmdUpdate(registry, subcommand);
   if (command === 'doctor') return cmdDoctor(registry, subcommand);

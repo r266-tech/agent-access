@@ -172,14 +172,14 @@
       ],
       "command": "pmkt",
       "description": "Read-only Polymarket CLI for market/event search, summaries, prices, outcomes, order books, trades, and public holder data. It never asks for wallet credentials, private keys, approvals, or order placement.",
-      "repository": "https://github.com/r266-tech/agent-access/issues?q=pmkt",
+      "repository": "https://github.com/r266-tech/agent-access",
       "install": {
-        "type": "source-pending",
-        "hint": "The public contract is registered here; installable standalone pmkt release is pending. Until then, use a local registry overlay or source checkout."
+        "type": "bundled",
+        "hint": "Bundled in the Agent Access plugin. Run agent-access run pmkt -- --help immediately, or agent-access install pmkt --run to create PATH shims."
       },
       "update": {
-        "type": "source-pending",
-        "hint": "Update via the standalone pmkt package once published."
+        "type": "plugin-upgrade",
+        "hint": "Bundled CLI updates ship with Agent Access plugin upgrades."
       },
       "doctor": [
         "pmkt",
@@ -206,11 +206,11 @@
         "prices",
         "order_books"
       ],
-      "source_status": "contract-public-source-pending",
+      "source_status": "public-release",
       "quality": {
         "level": "hot-route-candidate",
         "last_verified_at": "2026-06-17",
-        "verification": "Local pmkt 0.1.0 help verified; public standalone repo pending.",
+        "verification": "pmkt bundled in Agent Access plugin; help/doctor verified through agent-access run/doctor.",
         "probes": [
           {
             "name": "help",
@@ -242,8 +242,8 @@
         ],
         "fixture_policy": "live-probe",
         "last_run_at": "2026-06-17",
-        "evidence": "Local pmkt 0.1.0 help verified; public standalone repo pending.",
-        "residual_risk": "Public standalone companion CLI source or install path is pending."
+        "evidence": "pmkt bundled in Agent Access plugin; help/doctor verified through agent-access run/doctor.",
+        "residual_risk": null
       },
       "error_contract": {
         "exit_codes": [
@@ -260,6 +260,11 @@
         "json_error_envelope": true,
         "next_action": true,
         "no_sentinel_rows": true
+      },
+      "bundle": {
+        "type": "python-module",
+        "path": "companion-clis/pmkt",
+        "module": "pmkt.cli"
       }
     },
     {
@@ -417,14 +422,14 @@
       ],
       "command": "douban",
       "description": "Douban movie CLI for ratings/details, title search, nowplaying lists, current-user interest status, and explicit dry-run/apply mark/rate actions through the user browser session.",
-      "repository": "https://github.com/r266-tech/agent-access/issues?q=douban",
+      "repository": "https://github.com/r266-tech/agent-access",
       "install": {
-        "type": "source-pending",
-        "hint": "The public contract is registered here; standalone douban CLI release is pending. Use a local registry overlay or source checkout until published."
+        "type": "bundled",
+        "hint": "Bundled in the Agent Access plugin. Run agent-access run douban -- --help immediately, or agent-access install douban --run to create PATH shims."
       },
       "update": {
-        "type": "source-pending",
-        "hint": "Update via the standalone douban package once published."
+        "type": "plugin-upgrade",
+        "hint": "Bundled CLI updates ship with Agent Access plugin upgrades."
       },
       "doctor": [
         "douban",
@@ -467,11 +472,11 @@
         "urls",
         "pagination"
       ],
-      "source_status": "contract-public-source-pending",
+      "source_status": "public-release",
       "quality": {
         "level": "hot-route-candidate",
         "last_verified_at": "2026-06-17",
-        "verification": "Local Douban CLI help and prior movie/status flows verified; public standalone repo pending.",
+        "verification": "douban bundled in Agent Access plugin; help/doctor verified through agent-access run/doctor.",
         "probes": [
           {
             "name": "help",
@@ -505,8 +510,8 @@
         ],
         "fixture_policy": "manual-only",
         "last_run_at": "2026-06-17",
-        "evidence": "Local Douban CLI help and prior movie/status flows verified; public standalone repo pending.",
-        "residual_risk": "Public standalone companion CLI source or install path is pending."
+        "evidence": "douban bundled in Agent Access plugin; help/doctor verified through agent-access run/doctor.",
+        "residual_risk": null
       },
       "error_contract": {
         "exit_codes": [
@@ -523,6 +528,10 @@
         "json_error_envelope": true,
         "next_action": true,
         "no_sentinel_rows": true
+      },
+      "bundle": {
+        "type": "python-script",
+        "path": "companion-clis/douban/douban_cli.py"
       }
     },
     {
@@ -544,18 +553,18 @@
         "dianping"
       ],
       "description": "Dianping CLI for shop search, shop detail, cities, review text when exposed, and local browser/cookie auth diagnostics without exporting cookies.",
-      "repository": "https://github.com/r266-tech/agent-access/issues?q=dianping",
+      "repository": "https://github.com/r266-tech/agent-access",
       "install": {
-        "type": "source-pending",
-        "hint": "The public contract is registered here; standalone Dianping CLI release is pending. Use a local registry overlay or source checkout until published."
+        "type": "bundled",
+        "hint": "Bundled in the Agent Access plugin. Run agent-access run dp -- --help immediately, or agent-access install dp --run to create PATH shims."
       },
       "update": {
-        "type": "source-pending",
-        "hint": "Update via the standalone dianping package once published."
+        "type": "plugin-upgrade",
+        "hint": "Bundled CLI updates ship with Agent Access plugin upgrades."
       },
       "doctor": [
         "dp",
-        "doctor"
+        "--help"
       ],
       "auth": {
         "required_for": [
@@ -597,11 +606,11 @@
         "urls",
         "pagination"
       ],
-      "source_status": "contract-public-source-pending",
+      "source_status": "public-release",
       "quality": {
         "level": "hot-route-candidate",
         "last_verified_at": "2026-06-17",
-        "verification": "Local dp/dianping help verified; public standalone repo pending.",
+        "verification": "dp bundled in Agent Access plugin; help/doctor verified through agent-access run/doctor.",
         "probes": [
           {
             "name": "help",
@@ -621,7 +630,7 @@
       },
       "source_strategy": "COOKIE_API",
       "source_contract": "stable",
-      "source_note": "Dianping route prefers stable page/API reads through the companion CLI and local session.",
+      "source_note": "Dianping web reads use browser/CDP or explicit cookie import; bundled CLI is installable, while live review access depends on user session/runtime availability.",
       "verify": {
         "required_flow": [
           "help",
@@ -634,8 +643,8 @@
         ],
         "fixture_policy": "manual-only",
         "last_run_at": "2026-06-17",
-        "evidence": "Local dp/dianping help verified; public standalone repo pending.",
-        "residual_risk": "Public standalone companion CLI source or install path is pending."
+        "evidence": "dp bundled in Agent Access plugin; help/doctor verified through agent-access run/doctor.",
+        "residual_risk": null
       },
       "error_contract": {
         "exit_codes": [
@@ -652,6 +661,10 @@
         "json_error_envelope": true,
         "next_action": true,
         "no_sentinel_rows": true
+      },
+      "bundle": {
+        "type": "python-script",
+        "path": "companion-clis/dianping/dp_cli.py"
       }
     },
     {
@@ -671,14 +684,34 @@
       ],
       "command": "xhs",
       "description": "Agent-only Xiaohongshu/Rednote CLI wrapper for search, notes, users, comments, topics, feeds, and explicitly gated mutating pass-through commands.",
-      "repository": "https://github.com/r266-tech/agent-access/issues?q=xhs",
+      "repository": "https://pypi.org/project/xiaohongshu-cli/",
       "install": {
-        "type": "source-pending",
-        "hint": "The public contract is registered here; standalone xhs wrapper release is pending. Users must provide their own local XHS session and approved upstream install."
+        "type": "python-package",
+        "commands": [
+          {
+            "command": [
+              "bash",
+              "-lc",
+              "if command -v uv >/dev/null 2>&1; then uv tool install --force xiaohongshu-cli; else python3 -m pip install --user --upgrade xiaohongshu-cli; fi"
+            ],
+            "description": "Install or refresh the public xiaohongshu-cli package, preferring uv tool when available."
+          }
+        ],
+        "hint": "Install xiaohongshu-cli from PyPI, then run agent-access doctor xhs --run."
       },
       "update": {
-        "type": "source-pending",
-        "hint": "Update via the standalone xhs wrapper once published."
+        "type": "python-package-upgrade",
+        "commands": [
+          {
+            "command": [
+              "bash",
+              "-lc",
+              "if command -v uv >/dev/null 2>&1; then uv tool upgrade xiaohongshu-cli || uv tool install --force xiaohongshu-cli; else python3 -m pip install --user --upgrade xiaohongshu-cli; fi"
+            ],
+            "description": "Upgrade the public xiaohongshu-cli package."
+          }
+        ],
+        "hint": "Upgrade xiaohongshu-cli from PyPI, then run agent-access doctor xhs --run."
       },
       "doctor": [
         "xhs",
@@ -720,11 +753,11 @@
         "cache_refs",
         "pagination"
       ],
-      "source_status": "contract-public-source-pending",
+      "source_status": "public-source",
       "quality": {
         "level": "hot-route-candidate",
         "last_verified_at": "2026-06-17",
-        "verification": "Local xhs wrapper help verified; public standalone wrapper repo pending.",
+        "verification": "Local xiaohongshu-cli help verified; public package install path registered through uv/pip.",
         "probes": [
           {
             "name": "help",
@@ -744,7 +777,7 @@
       },
       "source_strategy": "INTERCEPT",
       "source_contract": "internal-unstable",
-      "source_note": "XHS web reads often depend on session/runtime traffic; public adapter remains source-pending.",
+      "source_note": "XHS web reads often depend on logged-in session/runtime traffic; the public xiaohongshu-cli install path is registered, while writes still require explicit user intent.",
       "verify": {
         "required_flow": [
           "help",
@@ -758,8 +791,8 @@
         ],
         "fixture_policy": "manual-only",
         "last_run_at": "2026-06-17",
-        "evidence": "Local xhs wrapper help verified; public standalone wrapper repo pending.",
-        "residual_risk": "Public standalone companion CLI source or install path is pending."
+        "evidence": "Local xiaohongshu-cli help verified; public package install path registered through uv/pip.",
+        "residual_risk": "The upstream package uses logged-in browser/session state for many commands; mutating commands still require explicit user intent."
       },
       "error_contract": {
         "exit_codes": [

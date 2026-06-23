@@ -45,16 +45,20 @@ Agent Access 的打法是把重复访问变成可复用能力：
 
 ## 你会得到什么
 
-- 随插件打包的 `agent-access` CLI：查询 registry、查看安装/升级计划、doctor 检查、routing contract、verify、auth 路由、manifest 门禁、overlay 遮蔽审计、公开审计、贡献草稿。
+- 随插件打包的 `agent-access` CLI：查询 registry、运行 bundled companion CLI、查看安装/升级计划、doctor 检查、routing contract、verify、auth 路由、manifest 门禁、overlay 遮蔽审计、公开审计、贡献草稿。
 - 可移植的 `registry.json`：登记 WeChat、Polymarket、小宇宙、豆瓣、大众点评、小红书等 companion CLI。
 - 由 registry 派生的 `cli-manifest.json`：给 agent 和发布流程一个稳定发现面，避免 route 静默消失。
 - 薄 skill：提醒 agent 怎么选工具，但不把所有规则塞进常驻 prompt。
 - references：CLI 生成、auth/session 边界、浏览器兜底、贡献审核等操作说明。
 - Codex 插件包：位于 `plugins/agent-access`，方便 Codex 用户安装。
 
-装插件后，用户立即拥有核心 `agent-access` CLI 和 registry。具体站点的
-companion CLI 不默认全部打包进插件；agent 可以通过 `agent-access info/install/update/verify`
-发现、安装和检查它们。这样基础插件保持小而可信，用户又不会卡在“不知道下一步怎么用”。
+装插件后，用户立即拥有核心 `agent-access` CLI、registry，以及插件内置的轻量 companion CLI。
+agent 可以通过 `agent-access run <name> -- ...` 直接运行 bundled CLI，也可以通过
+`agent-access info/install/update/verify` 发现、安装和检查外部 companion CLI。
+这样基础插件保持小而可信，用户又不会卡在“不知道下一步怎么用”。
+`agent-access list/info` 会暴露每个 route 的 `install.state`：
+`installable` 表示 registry 已声明可执行安装命令和 doctor；`contract-only`
+表示只有公开能力契约，独立 CLI 安装器还没发布，agent 不应假设用户机器上已经能运行该命令。
 如果用户配置了本地私有 registry 或 overlay，`agent-access audit-overlay` 会报告它是否遮蔽了插件自带 route，避免 agent 误以为正在使用最新打包契约。
 
 ## 快速开始
@@ -66,6 +70,7 @@ npx github:r266-tech/agent-access --help
 npx github:r266-tech/agent-access list
 npx github:r266-tech/agent-access contract --target douban --task "mark movie as watched"
 npx github:r266-tech/agent-access verify wechat-cli
+npx github:r266-tech/agent-access run pmkt -- --help
 npx github:r266-tech/agent-access info wechat-cli
 npx github:r266-tech/agent-access doctor wechat-cli
 npx github:r266-tech/agent-access check-manifest
@@ -83,7 +88,9 @@ agent-access list
 agent-access info wechat-cli
 agent-access contract --target douban --task "mark movie as watched"
 agent-access verify wechat-cli
+agent-access run pmkt -- --help
 agent-access install wechat-cli      # 默认只输出 dry-run 计划
+agent-access install pmkt --run      # 为 bundled CLI 创建本地 PATH shim
 agent-access doctor wechat-cli --run # 执行目标 CLI 的 doctor 命令
 agent-access check-manifest          # 防止 registry route 与 manifest 漂移
 agent-access audit-overlay           # 检查本地私有 registry 是否遮蔽打包 route
@@ -126,13 +133,15 @@ agent-access update wechat-cli --run
 | 目标 | 命令 | 状态 | 边界 |
 | --- | --- | --- | --- |
 | 微信 / WeChat / Weixin 本地数据 | `wechat-cli`, `wx-cli` | 公开 release | 只读本地微信数据；不发消息，不控制 UI。 |
-| Polymarket | `pmkt` | 公开契约，独立源码待发布 | 只读市场、事件、价格、结果、订单簿、交易和 holder 数据；不碰钱包凭据。 |
+| Polymarket | `pmkt` | 插件内置，公开 release | 只读市场、事件、价格、结果、订单簿、交易和 holder 数据；不碰钱包凭据。 |
 | 小宇宙 FM / Xiaoyuzhou | `xyz` | 公开源码 | 只读订阅、节目、转录、搜索和历史。 |
-| 豆瓣电影 / Douban movie | `douban` | 公开契约，独立源码待发布 | 浏览器 session 读取；标记/评分默认 dry-run，显式 apply 才写。 |
-| 大众点评 / Dianping | `dp`, `dianping` | 公开契约，独立源码待发布 | 读取店铺和评价；支持浏览器/session 或 stdin cookie 导入；不导出 cookie。 |
-| 小红书 / Rednote / Xiaohongshu | `xhs` | 公开契约，独立源码待发布 | 用户 session 留本机；写操作必须显式命令和用户确认。 |
+| 豆瓣电影 / Douban movie | `douban` | 插件内置，公开 release | 浏览器 session 读取；标记/评分默认 dry-run，显式 apply 才写。 |
+| 大众点评 / Dianping | `dp`, `dianping` | 插件内置，公开 release | 读取店铺和评价；支持浏览器/session 或 stdin cookie 导入；不导出 cookie。 |
+| 小红书 / Rednote / Xiaohongshu | `xhs` | 公开 PyPI 包 | 用户 session 留本机；写操作必须显式命令和用户确认。 |
 
 `plugins/agent-access/skills/agent-access/registry.json` 是权威 registry。`source_status` 用来告诉 agent：这个 route 是现在可安装，还是只有公开契约、源码待发布。
+发布门禁会强制这个语义：`public-release` / `public-source` route 必须声明安装命令和 doctor；
+`contract-public-source-pending` route 必须保持 `source-pending`，不能混入假的 install 命令。
 
 `plugins/agent-access/skills/agent-access/cli-manifest.json` 是从 registry 生成的确定性发现索引。发布前跑：
 

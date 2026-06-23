@@ -18,6 +18,7 @@ Cursor、OpenClaw、Hermes 或自定义本地 agent 需要访问网站、App、A
 ```bash
 agent-access list
 agent-access info <target>
+agent-access run <target> -- --help
 agent-access contract --target <target-or-url> --task "<task>"
 agent-access verify <target>
 agent-access install <target>
@@ -29,8 +30,11 @@ agent-access audit-overlay
 `install` 和 `update` 默认只输出 dry-run 计划。只有用户明确要修改本机环境时才加
 `--run`。
 
-装插件后自带的是核心 `agent-access` CLI、registry 和 `cli-manifest.json` 发现索引。站点/软件 companion CLI
+装插件后自带的是核心 `agent-access` CLI、registry、`cli-manifest.json` 发现索引，以及插件内置的轻量 companion CLI。
+bundled route 可以直接 `agent-access run <target> -- ...`；外部站点/软件 companion CLI
 按需发现、安装、验证；如果没装，先用 `info/install/verify` 给用户和 agent 明确下一步。
+看 `list/info` 里的 `install.state`：`installable` 才表示用户可按 registry 安装；
+`contract-only` 表示只有公开契约，独立 CLI 安装器还没发布，不能假设用户机器可运行该命令。
 如果用户配置了私有 registry/overlay，先用 `audit-overlay` 判断它是否遮蔽了打包 route。
 
 如果 `agent-access` 不在 PATH，直接运行 helper：
