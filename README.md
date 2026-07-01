@@ -132,7 +132,7 @@ agent-access update wechat-cli --run
 
 | 目标 | 命令 | 状态 | 边界 |
 | --- | --- | --- | --- |
-| 微信 / WeChat / Weixin 本地数据 | `wechat-cli`, `wx-cli` | 公开 release | 只读本地微信数据；不发消息，不控制 UI。 |
+| 微信 / WeChat / Weixin 本地数据 | `wechat-cli`, `wx-cli` | 公开 release | 只读本地微信数据；语音转写需本地 opt-in ASR；不发消息，不控制 UI。 |
 | Polymarket | `pmkt` | 插件内置，公开 release | 只读市场、事件、价格、结果、订单簿、交易和 holder 数据；不碰钱包凭据。 |
 | 小宇宙 FM / Xiaoyuzhou | `xyz` | 公开源码 | 只读订阅、节目、转录、搜索和历史。 |
 | 豆瓣电影 / Douban movie | `douban` | 插件内置，公开 release | 浏览器 session 读取；标记/评分默认 dry-run，显式 apply 才写。 |

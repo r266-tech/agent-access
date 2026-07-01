@@ -25,7 +25,7 @@
         "微信"
       ],
       "command": "wechat-cli",
-      "description": "Read local WeChat conversations, contacts, groups, media, Moments, favorites, transfers, red packets, unread chats, and full-text search from the user machine. It does not send messages or control the WeChat UI.",
+      "description": "Read local WeChat conversations, contacts, groups, media, optional local voice transcripts, Moments, favorites, transfers, red packets, unread chats, and full-text search from the user machine. It does not send messages or control the WeChat UI.",
       "repository": "https://github.com/r266-tech/wechat-cli",
       "install": {
         "type": "script",
@@ -97,6 +97,7 @@
         "json",
         "ids",
         "media_refs",
+        "voice_transcripts",
         "pagination",
         "jsonl-events"
       ],
@@ -124,7 +125,7 @@
       },
       "source_strategy": "LOCAL_APP_DB",
       "source_contract": "local-data",
-      "source_note": "Local WeChat database/cache is the durable source; user data remains local.",
+      "source_note": "Local WeChat database/cache is the durable source; user data remains local. Voice transcription is opt-in through wechat-cli asr setup or installer --with-asr and uses local ASR dependencies.",
       "verify": {
         "required_flow": [
           "help",
